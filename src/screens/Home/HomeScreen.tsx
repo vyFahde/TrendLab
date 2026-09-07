@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
-import { RootStackParamList, Product } from '../../types';
+import { HomeStackParamList, Product } from '../../types';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AccessibleText } from '../../components/AccessibleText';
 import { ProductCard } from '../../components/ProductCard';
@@ -22,7 +22,7 @@ import { Search, Mic, Sparkles, Filter } from 'lucide-react-native';
 const categories = ['Todas', 'Calças', 'Camisetas', 'Casacos', 'Vestidos', 'Calçados'];
 
 export const HomeScreen: React.FC = () => {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const { focusMode } = useAccessibility();
 
   const [selectedCategory, setSelectedCategory] = useState('Todas');

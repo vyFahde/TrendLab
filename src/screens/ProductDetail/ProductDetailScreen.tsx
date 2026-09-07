@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   Image,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../types';
+import { useNavigation } from '@react-navigation/native';
+import { HomeStackParamList, RootStackParamList } from '../../types';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AccessibleText } from '../../components/AccessibleText';
 import { CustomButton } from '../../components/CustomButton';
@@ -23,13 +23,13 @@ import {
   ShoppingBag,
   Zap,
   Info,
-  Volume2,
 } from 'lucide-react-native';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
+type Props = NativeStackScreenProps<HomeStackParamList, 'ProductDetail'>;
 
 export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { product } = route.params;
+  const rootNavigation = useNavigation<any>();
   const { addToCart } = useCart();
   const { focusMode } = useAccessibility();
 
@@ -38,27 +38,32 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const [selectedColor, setSelectedColor] = useState<string>(product.colors[0].name);
   const [isSuperZoom, setIsSuperZoom] = useState<boolean>(false);
   const [addedFeedback, setAddedFeedback] = useState<boolean>(false);
+  const [imageError, setImageError] = useState<boolean>(false);
+  const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Áudio descrição sintetizada simulada (Persona Teresa - Baixa Visão)
-  const handleAudioDescription = () => {
-    Alert.alert(
-      '🔊 Leitor de Tela Acessível',
-      `Peça: ${product.name}.\nPreço: ${product.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.\nTecido: ${product.fabric}.\nTamanho ideal recomendado para você: ${product.recommendedSize}.`,
-      [{ text: 'Entendi' }]
-    );
-  };
+  // Limpeza de timeout ao desmontar a tela (Otimização de ciclo de vida)
+  useEffect(() => {
+    return () => {
+      if (feedbackTimeoutRef.current) {
+        clearTimeout(feedbackTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleAddToCart = () => {
     addToCart(product, selectedSize, selectedColor);
     setAddedFeedback(true);
-    setTimeout(() => {
+    if (feedbackTimeoutRef.current) {
+      clearTimeout(feedbackTimeoutRef.current);
+    }
+    feedbackTimeoutRef.current = setTimeout(() => {
       setAddedFeedback(false);
     }, 2500);
   };
 
   const handleBuyNow = () => {
     addToCart(product, selectedSize, selectedColor);
-    navigation.navigate('Checkout');
+    rootNavigation.navigate('Checkout');
   };
 
   return (
@@ -80,40 +85,40 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
               Voltar
             </AccessibleText>
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.audioButton}
-            onPress={handleAudioDescription}
-            accessibilityLabel="Ouvir áudio descrição da peça"
-            accessibilityRole="button"
-          >
-            <Volume2 size={20} color={Colors.electricIris} />
-            <AccessibleText size="xs" weight="bold" color={Colors.electricIris}>
-              Áudio Descrição
-            </AccessibleText>
-          </TouchableOpacity>
         </View>
 
         {/* Imagem do Produto com Botão de Super Zoom (Teresa - Baixa Visão) */}
         <View style={styles.imageContainer}>
-          <Image
-            source={{ uri: product.imageUrl }}
-            style={[styles.image, isSuperZoom && styles.imageSuperZoom]}
-            resizeMode={isSuperZoom ? 'cover' : 'contain'}
-          />
+          {imageError ? (
+            <View style={[styles.image, styles.fallbackContainer]}>
+              <ShoppingBag size={56} color={Colors.disabled} />
+              <AccessibleText size="xs" color={Colors.charcoalSlate} style={styles.fallbackText}>
+                Imagem indisponível no momento
+              </AccessibleText>
+            </View>
+          ) : (
+            <Image
+              source={{ uri: product.imageUrl }}
+              style={[styles.image, isSuperZoom && styles.imageSuperZoom]}
+              resizeMode={isSuperZoom ? 'cover' : 'contain'}
+              onError={() => setImageError(true)}
+            />
+          )}
 
           {/* Botão de Super Zoom */}
-          <TouchableOpacity
-            style={[styles.zoomButton, isSuperZoom && styles.zoomButtonActive]}
-            onPress={() => setIsSuperZoom(!isSuperZoom)}
-            accessibilityRole="button"
-            accessibilityLabel={isSuperZoom ? 'Desativar Super Zoom' : 'Ativar Super Zoom para ver textura do tecido'}
-          >
-            <ZoomIn size={18} color={Colors.white} />
-            <AccessibleText size="xs" weight="bold" color={Colors.white}>
-              {isSuperZoom ? 'Zoom Normal' : 'Super Zoom Tecido'}
-            </AccessibleText>
-          </TouchableOpacity>
+          {!imageError && (
+            <TouchableOpacity
+              style={[styles.zoomButton, isSuperZoom && styles.zoomButtonActive]}
+              onPress={() => setIsSuperZoom(!isSuperZoom)}
+              accessibilityRole="button"
+              accessibilityLabel={isSuperZoom ? 'Desativar Super Zoom' : 'Ativar Super Zoom para ver textura do tecido'}
+            >
+              <ZoomIn size={18} color={Colors.white} />
+              <AccessibleText size="xs" weight="bold" color={Colors.white}>
+                {isSuperZoom ? 'Zoom Normal' : 'Super Zoom Tecido'}
+              </AccessibleText>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Título e Preço */}
@@ -304,17 +309,6 @@ const styles = StyleSheet.create({
     gap: 6,
     padding: 6,
   },
-  audioButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#EEF2FF',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#C7D2FE',
-  },
   imageContainer: {
     width: '100%',
     height: 320,
@@ -324,6 +318,15 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
+  },
+  fallbackContainer: {
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  fallbackText: {
+    letterSpacing: 0.2,
   },
   imageSuperZoom: {
     transform: [{ scale: 1.4 }],

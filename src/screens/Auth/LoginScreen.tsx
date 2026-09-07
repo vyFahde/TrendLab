@@ -7,6 +7,8 @@ import {
   Platform,
   TouchableOpacity,
   Alert,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -36,6 +38,17 @@ const loginValidationSchema = Yup.object().shape({
     .min(6, 'A senha precisa ter pelo menos 6 caracteres.')
     .required('A senha é obrigatória.'),
 });
+
+const DismissKeyboard: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  if (Platform.OS === 'web') {
+    return children;
+  }
+  return (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      {children}
+    </TouchableWithoutFeedback>
+  );
+};
 
 export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const { loginUser } = useAuth();
@@ -72,7 +85,10 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
         >
+          <DismissKeyboard>
+            <View>
           {/* Cabeçalho da Marca */}
           <View style={styles.brandSection}>
             <View style={styles.logoBadge}>
@@ -221,6 +237,8 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
               </TouchableOpacity>
             </View>
           </View>
+          </View>
+          </DismissKeyboard>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

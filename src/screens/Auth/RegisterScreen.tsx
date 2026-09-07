@@ -7,6 +7,8 @@ import {
   Platform,
   TouchableOpacity,
   Alert,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -40,6 +42,17 @@ const registerValidationSchema = Yup.object().shape({
     .required('Confirme sua senha.'),
 });
 
+const DismissKeyboard: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  if (Platform.OS === 'web') {
+    return children;
+  }
+  return (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      {children}
+    </TouchableWithoutFeedback>
+  );
+};
+
 export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const { registerUser } = useAuth();
 
@@ -65,7 +78,10 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
         >
+          <DismissKeyboard>
+            <View>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
@@ -172,6 +188,8 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
               )}
             </Formik>
           </View>
+          </View>
+          </DismissKeyboard>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

@@ -22,15 +22,22 @@ export interface CartItem {
   quantity: number;
 }
 
+// Stack interno da aba Início (mantém a Bottom Tab visível ao abrir os Detalhes)
+export type HomeStackParamList = {
+  HomeScreen: undefined;
+  ProductDetail: { product: Product };
+};
+
+// Rotas raiz do App
 export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   MainTabs: undefined;
-  ProductDetail: { product: Product };
   Checkout: undefined;
   OrderSuccess: { orderId: string; total: number };
 };
 
+// Rotas das Abas Inferiores
 export type TabParamList = {
   HomeTab: undefined;
   CartTab: undefined;

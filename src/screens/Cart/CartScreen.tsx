@@ -8,6 +8,8 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -31,6 +33,19 @@ import {
   CheckCircle2,
 } from 'lucide-react-native';
 
+// No ambiente Web (computador), TouchableWithoutFeedback intercepta cliques do mouse e desfoca o input.
+// Por isso, ativamos o fechamento de teclado por toque fora apenas em dispositivos móveis (Android/iOS).
+const DismissKeyboard: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  if (Platform.OS === 'web') {
+    return children;
+  }
+  return (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      {children}
+    </TouchableWithoutFeedback>
+  );
+};
+
 export const CartScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { items, removeFromCart, updateQuantity, clearCart, subtotal, totalItems } = useCart();
@@ -38,11 +53,23 @@ export const CartScreen: React.FC = () => {
   // Etapa do Checkout: 1 = Revisão da Sacola, 2 = Formulário de Entrega e Pagamento
   const [checkoutStep, setCheckoutStep] = useState<1 | 2>(1);
 
+  // Fallback para imagens com erro de carregamento
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
+
   // Campos do Formulário de Entrega
   const [receiverName, setReceiverName] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [address, setAddress] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'pix' | 'card'>('pix');
+
+  // Máscara e formatação de CEP (XXXXX-XXX)
+  const formatZipCode = (val: string) => {
+    const clean = val.replace(/\D/g, '').slice(0, 8);
+    if (clean.length > 5) {
+      return `${clean.slice(0, 5)}-${clean.slice(5)}`;
+    }
+    return clean;
+  };
 
   // Erros de Validação do Formulário
   const [receiverNameError, setReceiverNameError] = useState('');
@@ -97,19 +124,11 @@ export const CartScreen: React.FC = () => {
       clearCart();
       setCheckoutStep(1);
 
-      Alert.alert(
-        '🎉 Pedido Confirmado!',
-        `Seu pedido #${orderId} no valor de ${orderTotal.toLocaleString('pt-BR', {
-          style: 'currency',
-          currency: 'BRL',
-        })} foi processado com sucesso via ${paymentMethod === 'pix' ? 'Pix' : 'Cartão'}.\n\nEntrega para: ${receiverName}\n${address}.`,
-        [
-          {
-            text: 'Voltar ao Catálogo',
-            onPress: () => navigation.navigate('MainTabs'),
-          },
-        ]
-      );
+      // Redireciona para a tela dedicada de pedido realizado com sucesso
+      navigation.navigate('OrderSuccess', {
+        orderId,
+        total: orderTotal,
+      });
     }
   };
 
@@ -123,7 +142,10 @@ export const CartScreen: React.FC = () => {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
         >
+          <DismissKeyboard>
+            <View>
         {/* Cabeçalho */}
         <View style={styles.header}>
           <AccessibleText size="xs" weight="bold" color={Colors.electricIris} style={styles.badge}>
@@ -184,16 +206,29 @@ export const CartScreen: React.FC = () => {
                 </AccessibleText>
                 <CustomButton
                   title="Ver Produtos da Loja"
-                  onPress={() => navigation.navigate('MainTabs')}
+                  onPress={() => (navigation as any).navigate('HomeTab', { screen: 'HomeScreen' })}
                   variant="primary"
                   style={styles.backShopButton}
                 />
               </View>
             ) : (
               <View>
-                {items.map((item, index) => (
-                  <View key={`${item.product.id}-${item.selectedSize}-${index}`} style={styles.cartCard}>
-                    <Image source={{ uri: item.product.imageUrl }} style={styles.cartImage} />
+                {items.map((item, index) => {
+                  const itemKey = `${item.product.id}-${item.selectedSize}-${index}`;
+                  const hasImageError = failedImages[itemKey];
+                  return (
+                    <View key={itemKey} style={styles.cartCard}>
+                      {hasImageError ? (
+                        <View style={[styles.cartImage, styles.cartFallbackImage]}>
+                          <ShoppingBag size={24} color={Colors.disabled} />
+                        </View>
+                      ) : (
+                        <Image
+                          source={{ uri: item.product.imageUrl }}
+                          style={styles.cartImage}
+                          onError={() => setFailedImages((prev) => ({ ...prev, [itemKey]: true }))}
+                        />
+                      )}
 
                     <View style={styles.cartInfo}>
                       <AccessibleText size="base" weight="bold" color={Colors.highInkSlate} numberOfLines={1}>
@@ -254,7 +289,8 @@ export const CartScreen: React.FC = () => {
                       </View>
                     </View>
                   </View>
-                ))}
+                );
+              })}
 
                 {/* Resumo de Valores */}
                 <View style={styles.summaryCard}>
@@ -342,8 +378,9 @@ export const CartScreen: React.FC = () => {
               maxLength={9}
               value={zipCode}
               onChangeText={(t) => {
-                setZipCode(t);
-                if (formSubmitted) setZipCodeError(validateZipCode(t));
+                const formatted = formatZipCode(t);
+                setZipCode(formatted);
+                if (formSubmitted) setZipCodeError(validateZipCode(formatted));
               }}
               errorMessage={zipCodeError}
               isValid={Boolean(zipCode && !validateZipCode(zipCode))}
@@ -441,6 +478,8 @@ export const CartScreen: React.FC = () => {
             </View>
           </View>
         )}
+            </View>
+          </DismissKeyboard>
       </ScrollView>
     </KeyboardAvoidingView>
     </SafeAreaView>
@@ -522,6 +561,10 @@ const styles = StyleSheet.create({
     height: 90,
     borderRadius: 10,
     backgroundColor: '#F1F5F9',
+  },
+  cartFallbackImage: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   cartInfo: {
     flex: 1,

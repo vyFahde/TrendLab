@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Switch,
   Alert,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -14,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AccessibleText } from '../../components/AccessibleText';
 import { CustomButton } from '../../components/CustomButton';
 import { useAccessibility } from '../../context/AccessibilityContext';
+import { useAuth } from '../../context/AuthContext';
 import Colors from '../../theme/colors';
 import {
   Sliders,
@@ -23,13 +25,11 @@ import {
   RotateCcw,
   LogOut,
   User,
-  Eye,
-  Brain,
-  CheckCircle2,
 } from 'lucide-react-native';
 
 export const ProfileScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { user, logoutUser } = useAuth();
   const {
     fontScale,
     increaseFont,
@@ -41,15 +41,36 @@ export const ProfileScreen: React.FC = () => {
     resetAccessibility,
   } = useAccessibility();
 
+  const performLogout = async () => {
+    try {
+      await logoutUser();
+      const rootNav = navigation.getParent<NativeStackNavigationProp<RootStackParamList>>() || navigation;
+      rootNav.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    } catch (error) {
+      console.warn('Erro ao encerrar sessão:', error);
+      (navigation as any).navigate('Login');
+    }
+  };
+
   const handleLogout = () => {
-    Alert.alert('Sair da Conta', 'Deseja encerrar sua sessão no TrendLab?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Sair',
-        style: 'destructive',
-        onPress: () => navigation.replace('Login'),
-      },
-    ]);
+    if (Platform.OS === 'web') {
+      const confirmed = typeof window !== 'undefined' ? window.confirm('Deseja realmente encerrar sua sessão no TrendLab?') : true;
+      if (confirmed) {
+        performLogout();
+      }
+    } else {
+      Alert.alert('Sair da Conta', 'Deseja encerrar sua sessão no TrendLab?', [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sair',
+          style: 'destructive',
+          onPress: performLogout,
+        },
+      ]);
+    }
   };
 
   return (
@@ -65,10 +86,10 @@ export const ProfileScreen: React.FC = () => {
           </View>
           <View style={styles.userInfo}>
             <AccessibleText size="lg" weight="bold" color={Colors.deepSpaceNavy}>
-              Configurações
+              {user?.name || 'Configurações'}
             </AccessibleText>
             <AccessibleText size="xs" color={Colors.charcoalSlate}>
-              Preferências do usuário, leitura e acessibilidade
+              {user?.email || 'Preferências do usuário, leitura e acessibilidade'}
             </AccessibleText>
           </View>
         </View>
@@ -184,49 +205,6 @@ export const ProfileScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Seção das Personas do Projeto (Para Apresentação Didática) */}
-        <View style={styles.section}>
-          <AccessibleText size="base" weight="bold" color={Colors.deepSpaceNavy} style={styles.sectionMainTitle}>
-            Personas do Projeto TrendLab
-          </AccessibleText>
-
-          {/* Card Teresa */}
-          <View style={styles.personaCard}>
-            <View style={styles.personaBadge}>
-              <Eye size={16} color={Colors.white} />
-              <AccessibleText size="xs" weight="bold" color={Colors.white}>
-                Baixa Visão & Astigmatismo
-              </AccessibleText>
-            </View>
-            <AccessibleText size="base" weight="bold" color={Colors.deepSpaceNavy}>
-              Teresa Tavares (52 anos)
-            </AccessibleText>
-            <AccessibleText size="xs" color={Colors.charcoalSlate} style={styles.personaText}>
-              • Fontes escalonáveis até 130% sem quebrar o layout{'\n'}
-              • Contraste WCAG AAA (16.5:1 no cabeçalho){'\n'}
-              • Super Zoom para ver texturas de tecido no Provador
-            </AccessibleText>
-          </View>
-
-          {/* Card Gabriel */}
-          <View style={styles.personaCard}>
-            <View style={[styles.personaBadge, { backgroundColor: Colors.warmCoral }]}>
-              <Brain size={16} color={Colors.white} />
-              <AccessibleText size="xs" weight="bold" color={Colors.white}>
-                TDAH & Dislexia
-              </AccessibleText>
-            </View>
-            <AccessibleText size="base" weight="bold" color={Colors.deepSpaceNavy}>
-              Gabriel Gomes (20 anos)
-            </AccessibleText>
-            <AccessibleText size="xs" color={Colors.charcoalSlate} style={styles.personaText}>
-              • Modo Foco (Calm UI sem propagandas distrativas){'\n'}
-              • Fichas de produto em tópicos objetivos (bullet points){'\n'}
-              • Checkout direto em 2 etapas com Pix rápido
-            </AccessibleText>
-          </View>
-        </View>
-
         {/* Botão Sair */}
         <View style={styles.logoutSection}>
           <CustomButton
@@ -280,9 +258,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 12,
-  },
-  sectionMainTitle: {
     marginBottom: 12,
   },
   preferenceCard: {
@@ -352,29 +327,6 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 10,
     marginTop: 4,
-  },
-  personaCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    marginBottom: 12,
-  },
-  personaBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: Colors.deepSpaceNavy,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginBottom: 8,
-  },
-  personaText: {
-    marginTop: 6,
-    lineHeight: 18,
   },
   logoutSection: {
     marginTop: 10,

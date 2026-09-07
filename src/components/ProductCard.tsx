@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { Product } from '../types';
 import { AccessibleText } from './AccessibleText';
 import Colors from '../theme/colors';
 import { useAccessibility } from '../context/AccessibilityContext';
-import { Star, Sparkles, Check } from 'lucide-react-native';
+import { Star, Sparkles, Check, ShoppingBag } from 'lucide-react-native';
 
 interface ProductCardProps {
   product: Product;
@@ -13,6 +13,7 @@ interface ProductCardProps {
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) => {
   const { focusMode, highContrast } = useAccessibility();
+  const [imageError, setImageError] = useState(false);
 
   return (
     <TouchableOpacity
@@ -26,7 +27,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
       ]}
     >
       <View style={styles.imageContainer}>
-        <Image source={{ uri: product.imageUrl }} style={styles.image} resizeMode="cover" />
+        {imageError ? (
+          <View style={[styles.image, styles.fallbackContainer]}>
+            <ShoppingBag size={36} color={Colors.disabled} />
+          </View>
+        ) : (
+          <Image
+            source={{ uri: product.imageUrl }}
+            style={styles.image}
+            resizeMode="cover"
+            onError={() => setImageError(true)}
+          />
+        )}
         
         {/* Badge de Promoção (oculto no Modo Foco para evitar sobrecarga visual - TDAH) */}
         {!focusMode && product.originalPrice && (
@@ -124,6 +136,11 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
+  },
+  fallbackContainer: {
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   promoBadge: {
     position: 'absolute',

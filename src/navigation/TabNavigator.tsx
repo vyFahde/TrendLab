@@ -1,9 +1,8 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { TabParamList } from '../types';
-import { HomeScreen } from '../screens/Home/HomeScreen';
-import { CartScreen } from '../screens/Cart/CartScreen';
-import { ProfileScreen } from '../screens/Profile/ProfileScreen';
+import { CartScreen, ProfileScreen } from '../screens';
+import { HomeStackNavigator } from './HomeStackNavigator';
 import { useCart } from '../context/CartContext';
 import Colors from '../theme/colors';
 import { Home, ShoppingBag, Settings } from 'lucide-react-native';
@@ -36,7 +35,7 @@ export const TabNavigator: React.FC = () => {
     >
       <Tab.Screen
         name="HomeTab"
-        component={HomeScreen}
+        component={HomeStackNavigator}
         options={{
           tabBarLabel: 'Início',
           tabBarAccessibilityLabel: 'Aba Início: Catálogo de produtos inclusivos',
