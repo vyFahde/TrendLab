@@ -1,16 +1,5 @@
 import React, { useState } from 'react';
-import {
-  View,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  TouchableWithoutFeedback,
-  Keyboard,
-} from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types';
@@ -20,18 +9,7 @@ import { CustomInput } from '../../components/CustomInput';
 import { CustomButton } from '../../components/CustomButton';
 import { useCart } from '../../context/CartContext';
 import Colors from '../../theme/colors';
-import {
-  Trash2,
-  Plus,
-  Minus,
-  ShoppingBag,
-  ArrowRight,
-  CreditCard,
-  QrCode,
-  ShieldCheck,
-  Truck,
-  CheckCircle2,
-} from 'lucide-react-native';
+import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, CreditCard, QrCode, ShieldCheck, Truck, CheckCircle2, } from 'lucide-react-native';
 
 // No ambiente Web (computador), TouchableWithoutFeedback intercepta cliques do mouse e desfoca o input.
 // Por isso, ativamos o fechamento de teclado por toque fora apenas em dispositivos móveis (Android/iOS).
@@ -95,16 +73,6 @@ export const CartScreen: React.FC = () => {
     if (!val.trim()) return 'Informe a rua e o número da residência.';
     if (val.trim().length < 5) return 'Endereço muito curto. Inclua logradouro e número.';
     return '';
-  };
-
-  // Preenchimento rápido para apresentação (Persona Gabriel / Teresa)
-  const handleAutoFillAddress = () => {
-    setReceiverName('Teresa Tavares');
-    setZipCode('57000-000');
-    setAddress('Av. Fernandes Lima, 120 - Farol');
-    setReceiverNameError('');
-    setZipCodeError('');
-    setAddressError('');
   };
 
   const handleFinishOrder = () => {
@@ -348,11 +316,6 @@ export const CartScreen: React.FC = () => {
               <AccessibleText size="lg" weight="bold" color={Colors.deepSpaceNavy}>
                 Formulário de Envio
               </AccessibleText>
-              <TouchableOpacity onPress={handleAutoFillAddress} style={styles.autoFillButton}>
-                <AccessibleText size="xs" weight="bold" color={Colors.electricIris}>
-                  ⚡ Preencher Rápido (Demo)
-                </AccessibleText>
-              </TouchableOpacity>
             </View>
 
             {/* Nome do Destinatário */}
@@ -645,18 +608,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.cardBorder,
   },
   stepTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 16,
-  },
-  autoFillButton: {
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#C7D2FE',
   },
   paymentSection: {
     marginVertical: 12,

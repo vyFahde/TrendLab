@@ -46,24 +46,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginUser = async (email: string, password?: string): Promise<boolean> => {
-    // Casos especiais das Personas
-    if (email.toLowerCase().includes('teresa')) {
-      const teresaUser = { name: 'Teresa Tavares', email };
-      await AsyncStorage.setItem('@trendlab:active_user', JSON.stringify(teresaUser));
-      setUser(teresaUser);
-      return true;
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Contas de teste padrão pré-configuradas (requerem a senha correta)
+    const defaultAccounts: Record<string, { name: string; password?: string }> = {
+      'teresa.tavares@trendlab.com': { name: 'Teresa Tavares', password: '123456' },
+      'gabriel.gomes@trendlab.com': { name: 'Gabriel Gomes', password: '123456' },
+      'admin@trendlab.com': { name: 'Administrador TrendLab', password: '123456' },
+    };
+
+    if (defaultAccounts[cleanEmail]) {
+      const defaultAcc = defaultAccounts[cleanEmail];
+      if (!password || defaultAcc.password === password) {
+        const loggedUser = { name: defaultAcc.name, email: cleanEmail };
+        await AsyncStorage.setItem('@trendlab:active_user', JSON.stringify(loggedUser));
+        setUser(loggedUser);
+        return true;
+      }
+      return false; // Senha incorreta
     }
 
-    if (email.toLowerCase().includes('gabriel')) {
-      const gabrielUser = { name: 'Gabriel Gomes', email };
-      await AsyncStorage.setItem('@trendlab:active_user', JSON.stringify(gabrielUser));
-      setUser(gabrielUser);
-      return true;
-    }
-
-    // Busca conta salva no dispositivo
+    // Busca conta cadastrada pelo usuário no dispositivo
     try {
-      const savedAccountStr = await AsyncStorage.getItem(`@trendlab:account:${email.toLowerCase()}`);
+      const savedAccountStr = await AsyncStorage.getItem(`@trendlab:account:${cleanEmail}`);
       if (savedAccountStr) {
         const savedAccount = JSON.parse(savedAccountStr);
         if (!password || savedAccount.password === password) {
@@ -72,16 +77,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(loggedUser);
           return true;
         }
+        return false; // Senha incorreta
       }
     } catch (e) {
       console.warn('Erro ao verificar credenciais', e);
     }
 
-    // Fallback: se for um e-mail válido qualquer digitado pelo usuário
-    const fallbackUser = { name: email.split('@')[0], email };
-    await AsyncStorage.setItem('@trendlab:active_user', JSON.stringify(fallbackUser));
-    setUser(fallbackUser);
-    return true;
+    // Conta não encontrada no dispositivo
+    return false;
   };
 
   const logoutUser = async () => {

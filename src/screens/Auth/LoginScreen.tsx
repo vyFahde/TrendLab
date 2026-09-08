@@ -1,18 +1,8 @@
-import React, { useRef } from 'react';
-import {
-  View,
-  StyleSheet,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  TouchableOpacity,
-  Alert,
-  TouchableWithoutFeedback,
-  Keyboard,
-} from 'react-native';
+import React from 'react';
+import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Alert, TouchableWithoutFeedback, Keyboard, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Formik, FormikProps } from 'formik';
+import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { RootStackParamList } from '../../types';
 import { AccessibleText } from '../../components/AccessibleText';
@@ -20,7 +10,7 @@ import { CustomInput } from '../../components/CustomInput';
 import { CustomButton } from '../../components/CustomButton';
 import { useAuth } from '../../context/AuthContext';
 import Colors from '../../theme/colors';
-import { ShieldCheck, UserCheck, Sparkles, ArrowRight } from 'lucide-react-native';
+import { ShieldCheck, ArrowRight } from 'lucide-react-native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
@@ -52,27 +42,20 @@ const DismissKeyboard: React.FC<{ children: React.ReactElement }> = ({ children 
 
 export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const { loginUser } = useAuth();
-  const formikRef = useRef<FormikProps<LoginFormValues>>(null);
 
   const handleLoginSubmit = async (values: LoginFormValues) => {
     try {
-      await loginUser(values.email.trim(), values.senha);
-      navigation.replace('MainTabs');
+      const success = await loginUser(values.email.trim(), values.senha);
+      if (success) {
+        navigation.replace('MainTabs');
+      } else {
+        Alert.alert(
+          'Falha no Login',
+          'E-mail não cadastrado ou senha incorreta. Verifique suas credenciais ou crie uma nova conta.'
+        );
+      }
     } catch (err) {
       Alert.alert('Erro', 'Não foi possível realizar o login.');
-    }
-  };
-
-  // Atalho para apresentação rápida de personas (Teresa ou Gabriel)
-  const handleQuickLoginPersona = (persona: 'Teresa' | 'Gabriel') => {
-    if (formikRef.current) {
-      if (persona === 'Teresa') {
-        formikRef.current.setFieldValue('email', 'teresa.tavares@trendlab.com');
-        formikRef.current.setFieldValue('senha', '123456');
-      } else {
-        formikRef.current.setFieldValue('email', 'gabriel.gomes@trendlab.com');
-        formikRef.current.setFieldValue('senha', '123456');
-      }
     }
   };
 
@@ -127,7 +110,6 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
             </AccessibleText>
 
             <Formik
-              innerRef={formikRef}
               initialValues={{ email: '', senha: '' }}
               validationSchema={loginValidationSchema}
               onSubmit={handleLoginSubmit}
@@ -185,36 +167,6 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 </View>
               )}
             </Formik>
-
-            {/* Atalhos Rápidos para Demonstração de Personas na Apresentação */}
-            <View style={styles.personaSection}>
-              <AccessibleText size="xs" weight="semiBold" color={Colors.charcoalSlate} style={styles.personaTitle}>
-                DEMO DE APRESENTAÇÃO (PREENCHIMENTO RÁPIDO):
-              </AccessibleText>
-              <View style={styles.personaButtonsRow}>
-                <TouchableOpacity
-                  style={styles.personaChip}
-                  onPress={() => handleQuickLoginPersona('Teresa')}
-                  accessibilityLabel="Preencher como persona Teresa - Baixa Visão"
-                >
-                  <UserCheck size={16} color={Colors.electricIris} />
-                  <AccessibleText size="xs" weight="bold" color={Colors.electricIris}>
-                    Teresa (Baixa Visão)
-                  </AccessibleText>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.personaChip}
-                  onPress={() => handleQuickLoginPersona('Gabriel')}
-                  accessibilityLabel="Preencher como persona Gabriel - TDAH"
-                >
-                  <Sparkles size={16} color={Colors.electricIris} />
-                  <AccessibleText size="xs" weight="bold" color={Colors.electricIris}>
-                    Gabriel (TDAH)
-                  </AccessibleText>
-                </TouchableOpacity>
-              </View>
-            </View>
 
             {/* Link para Criar Conta */}
             <View style={styles.footerRow}>
@@ -297,32 +249,6 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     marginTop: 8,
-  },
-  personaSection: {
-    marginTop: 20,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
-  },
-  personaTitle: {
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  personaButtonsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  personaChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#EEF2FF',
-    borderWidth: 1,
-    borderColor: Colors.electricIris,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 20,
   },
   footerRow: {
     flexDirection: 'row',
