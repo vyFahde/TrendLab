@@ -2,9 +2,9 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface AccessibilityContextData {
-  fontScale: number; // 0.9, 1.0, 1.15, 1.30
-  focusMode: boolean; // Calm UI: oculta banners e estímulos excessivos (TDAH)
-  highContrast: boolean; // Contraste estendido para baixa visão
+  fontScale: number;
+  focusMode: boolean;
+  highContrast: boolean;
   increaseFont: () => void;
   decreaseFont: () => void;
   toggleFocusMode: () => void;

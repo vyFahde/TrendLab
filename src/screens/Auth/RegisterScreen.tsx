@@ -24,7 +24,6 @@ import { ArrowLeft, UserPlus } from 'lucide-react-native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Register'>;
 
-// Esquema de validação com Yup para cadastro: nome mínimo, formato de e-mail e conferência de senhas idênticas
 const registerValidationSchema = Yup.object().shape({
   nome: Yup.string()
     .trim()
@@ -117,11 +116,10 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                 isSubmitting,
               }) => (
                 <View>
-                  {/* Nome */}
                   <CustomInput
                     label="Nome Completo"
                     required
-                    placeholder="Ex: Teresa Tavares"
+                    placeholder="Ex: Maria Silva"
                     value={values.nome}
                     onChangeText={handleChange('nome')}
                     onBlur={handleBlur('nome')}
@@ -129,11 +127,10 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                     isValid={Boolean(touched.nome && !errors.nome && values.nome)}
                   />
 
-                  {/* E-mail */}
                   <CustomInput
                     label="E-mail"
                     required
-                    placeholder="Ex: teresa@exemplo.com"
+                    placeholder="Ex: maria@exemplo.com"
                     keyboardType="email-address"
                     autoCapitalize="none"
                     value={values.email}
@@ -143,7 +140,6 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                     isValid={Boolean(touched.email && !errors.email && values.email)}
                   />
 
-                  {/* Senha */}
                   <CustomInput
                     label="Senha"
                     required
@@ -156,7 +152,6 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                     isValid={Boolean(touched.senha && !errors.senha && values.senha)}
                   />
 
-                  {/* Confirmar Senha */}
                   <CustomInput
                     label="Confirmar Senha"
                     required
@@ -175,7 +170,6 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                     )}
                   />
 
-                  {/* Botão Cadastrar */}
                   <CustomButton
                     title="Concluir Cadastro"
                     onPress={() => handleSubmit()}
@@ -214,7 +208,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginBottom: 16,
-    paddingVertical: 8,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
   },
   formCard: {
     backgroundColor: Colors.white,

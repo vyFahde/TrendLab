@@ -146,17 +146,17 @@ export const ProfileScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* Alternador de Modo Foco (Calm UI - TDAH) */}
+          {/* Modo Foco */}
           <View style={styles.switchCard}>
             <View style={styles.switchInfo}>
               <View style={styles.prefTitleRow}>
                 <Sparkles size={20} color={Colors.warmCoral} />
                 <AccessibleText size="sm" weight="bold" color={Colors.highInkSlate} style={styles.switchTitle}>
-                  Modo Foco (Calm UI)
+                  Modo Foco
                 </AccessibleText>
               </View>
               <AccessibleText size="xs" color={Colors.charcoalSlate} style={styles.switchDesc}>
-                Oculta propagandas, badges piscantes e reduz sobrecarga cognitiva para TDAH e dislexia.
+                Oculta animações, badges promocionais e reduz distrações visuais.
               </AccessibleText>
             </View>
 
@@ -169,17 +169,17 @@ export const ProfileScreen: React.FC = () => {
             />
           </View>
 
-          {/* Alternador de Alto Contraste AAA */}
+          {/* Alto Contraste */}
           <View style={styles.switchCard}>
             <View style={styles.switchInfo}>
               <View style={styles.prefTitleRow}>
                 <Contrast size={20} color={Colors.electricIris} />
                 <AccessibleText size="sm" weight="bold" color={Colors.highInkSlate} style={styles.switchTitle}>
-                  Alto Contraste (WCAG AAA)
+                  Alto Contraste
                 </AccessibleText>
               </View>
               <AccessibleText size="xs" color={Colors.charcoalSlate} style={styles.switchDesc}>
-                Bordas reforçadas em Deep Space Navy e cores de máxima legibilidade para baixa visão.
+                Bordas reforçadas e cores de máxima legibilidade.
               </AccessibleText>
             </View>
 
@@ -188,7 +188,7 @@ export const ProfileScreen: React.FC = () => {
               onValueChange={toggleHighContrast}
               trackColor={{ false: '#CBD5E1', true: Colors.electricIris }}
               thumbColor={Colors.white}
-              accessibilityLabel="Ativar ou desativar Alto Contraste AAA"
+              accessibilityLabel="Ativar ou desativar Alto Contraste"
             />
           </View>
 

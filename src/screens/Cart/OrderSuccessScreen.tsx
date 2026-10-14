@@ -64,10 +64,10 @@ export const OrderSuccessScreen: React.FC<Props> = ({ route, navigation }) => {
             <Truck size={20} color={Colors.successEmerald} />
             <View style={styles.shippingText}>
               <AccessibleText size="xs" weight="bold" color={Colors.successEmerald}>
-                Frete Acessível com Rastreamento
+                Frete com Rastreamento
               </AccessibleText>
               <AccessibleText size="xs" color={Colors.charcoalSlate}>
-                Enviaremos atualizações por SMS e leitor de tela para o seu celular.
+                Enviaremos as atualizações do envio para o seu celular.
               </AccessibleText>
             </View>
           </View>
@@ -76,7 +76,7 @@ export const OrderSuccessScreen: React.FC<Props> = ({ route, navigation }) => {
         {/* Ações */}
         <View style={styles.actions}>
           <CustomButton
-            title="Voltar ao Catálogo (Início)"
+            title="Voltar ao Catálogo"
             onPress={() => navigation.replace('MainTabs')}
             variant="primary"
             icon={<Home size={20} color={Colors.white} />}

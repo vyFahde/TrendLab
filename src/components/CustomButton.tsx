@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
   ActivityIndicator,
   ViewStyle,
@@ -33,19 +33,21 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
   accessibilityLabel,
   accessibilityHint,
 }) => {
-  const getBackgroundColor = () => {
+  const [isFocused, setIsFocused] = useState(false);
+
+  const getBackgroundColor = (pressed: boolean) => {
     if (disabled) return Colors.disabled;
     switch (variant) {
       case 'primary':
-        return Colors.electricIris; // CTA padrão (#4338CA)
+        return pressed ? '#3730A3' : Colors.electricIris;
       case 'secondary':
-        return Colors.deepSpaceNavy;
+        return pressed ? '#17143A' : Colors.deepSpaceNavy;
       case 'success':
-        return Colors.successEmerald; // #15803D
+        return pressed ? '#166534' : Colors.successEmerald;
       case 'outline':
-        return 'transparent';
+        return pressed ? Colors.pressedOverlay : 'transparent';
       default:
-        return Colors.electricIris;
+        return pressed ? '#3730A3' : Colors.electricIris;
     }
   };
 
@@ -57,18 +59,21 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
   };
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.8}
+    <Pressable
       onPress={onPress}
       disabled={disabled || loading}
+      onFocus={() => setIsFocused(true)}
+      onBlur={() => setIsFocused(false)}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel || title}
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled: disabled || loading }}
-      style={[
+      style={({ pressed }) => [
         styles.button,
-        { backgroundColor: getBackgroundColor() },
+        { backgroundColor: getBackgroundColor(pressed) },
         variant === 'outline' && styles.outlineBorder,
+        pressed && !disabled && !loading && styles.pressedTransform,
+        isFocused && styles.focusRing,
         style,
       ]}
     >
@@ -87,13 +92,13 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
           </AccessibleText>
         </View>
       )}
-    </TouchableOpacity>
+    </Pressable>
   );
 };
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 52, // Garante tamanho mínimo acessível para toque
+    minHeight: 52,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
@@ -104,6 +109,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
+  },
+  pressedTransform: {
+    transform: [{ scale: 0.985 }],
+    opacity: 0.95,
+  },
+  focusRing: {
+    borderWidth: 3,
+    borderColor: Colors.focusRing,
   },
   outlineBorder: {
     borderWidth: 2,
@@ -123,3 +136,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+

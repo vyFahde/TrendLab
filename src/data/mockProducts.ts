@@ -18,7 +18,7 @@ export const mockProducts: Product[] = [
       'Botão grande e zíper de puxador facilitado',
     ],
     availableSizes: ['38', '40', '42', '44', '46', '48'],
-    recommendedSize: '42', // Recomendação personalizada para Teresa
+    recommendedSize: '42',
     colors: [
       { name: 'Azul Denim Escuro', hex: '#1E3A8A' },
       { name: 'Preto Clássico', hex: '#18181B' },
@@ -42,7 +42,7 @@ export const mockProducts: Product[] = [
       'Secagem rápida e fácil de passar',
     ],
     availableSizes: ['P', 'M', 'G', 'GG', 'XG'],
-    recommendedSize: 'G', // Recomendação rápida para Gabriel
+    recommendedSize: 'G',
     colors: [
       { name: 'Preto Profundo', hex: '#09090B' },
       { name: 'Branco Neve', hex: '#F4F4F5' },

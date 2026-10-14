@@ -9,10 +9,8 @@ import { CustomInput } from '../../components/CustomInput';
 import { CustomButton } from '../../components/CustomButton';
 import { useCart } from '../../context/CartContext';
 import Colors from '../../theme/colors';
-import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, CreditCard, QrCode, ShieldCheck, Truck, CheckCircle2, } from 'lucide-react-native';
+import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, CreditCard, QrCode, ShieldCheck, Truck, CheckCircle2, ArrowLeft, } from 'lucide-react-native';
 
-// No ambiente Web (computador), TouchableWithoutFeedback intercepta cliques do mouse e desfoca o input.
-// Por isso, ativamos o fechamento de teclado por toque fora apenas em dispositivos móveis (Android/iOS).
 const DismissKeyboard: React.FC<{ children: React.ReactElement }> = ({ children }) => {
   if (Platform.OS === 'web') {
     return children;
@@ -39,6 +37,7 @@ export const CartScreen: React.FC = () => {
   const [zipCode, setZipCode] = useState('');
   const [address, setAddress] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'pix' | 'card'>('pix');
+  const [isFinishing, setIsFinishing] = useState(false);
 
   // Máscara e formatação de CEP (XXXXX-XXX)
   const formatZipCode = (val: string) => {
@@ -54,6 +53,22 @@ export const CartScreen: React.FC = () => {
   const [zipCodeError, setZipCodeError] = useState('');
   const [addressError, setAddressError] = useState('');
   const [formSubmitted, setFormSubmitted] = useState(false);
+
+  // Navegação resiliente para catálogo
+  const handleGoToCatalog = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      try {
+        (navigation as any).navigate('MainTabs', {
+          screen: 'HomeTab',
+          params: { screen: 'HomeScreen' },
+        });
+      } catch {
+        (navigation as any).navigate('MainTabs');
+      }
+    }
+  };
 
   // Funções de Validação
   const validateReceiverName = (val: string) => {
@@ -86,17 +101,21 @@ export const CartScreen: React.FC = () => {
     setAddressError(aErr);
 
     if (!nErr && !zErr && !aErr) {
+      setIsFinishing(true);
       const orderId = `TL-${Math.floor(100000 + Math.random() * 900000)}`;
       const orderTotal = subtotal;
 
-      clearCart();
-      setCheckoutStep(1);
+      setTimeout(() => {
+        setIsFinishing(false);
+        clearCart();
+        setCheckoutStep(1);
 
-      // Redireciona para a tela dedicada de pedido realizado com sucesso
-      navigation.navigate('OrderSuccess', {
-        orderId,
-        total: orderTotal,
-      });
+        // Redireciona para a tela dedicada de pedido realizado com sucesso
+        navigation.navigate('OrderSuccess', {
+          orderId,
+          total: orderTotal,
+        });
+      }, 700);
     }
   };
 
@@ -114,6 +133,21 @@ export const CartScreen: React.FC = () => {
         >
           <DismissKeyboard>
             <View>
+        {/* Botão de Voltar quando aberto via Comprar Agora / Stack */}
+        {navigation.canGoBack() && (
+          <TouchableOpacity
+            style={styles.topBackButton}
+            onPress={() => navigation.goBack()}
+            accessibilityRole="button"
+            accessibilityLabel="Voltar para a tela anterior"
+          >
+            <ArrowLeft size={20} color={Colors.deepSpaceNavy} />
+            <AccessibleText size="sm" weight="bold" color={Colors.deepSpaceNavy}>
+              Voltar
+            </AccessibleText>
+          </TouchableOpacity>
+        )}
+
         {/* Cabeçalho */}
         <View style={styles.header}>
           <AccessibleText size="xs" weight="bold" color={Colors.electricIris} style={styles.badge}>
@@ -174,7 +208,7 @@ export const CartScreen: React.FC = () => {
                 </AccessibleText>
                 <CustomButton
                   title="Ver Produtos da Loja"
-                  onPress={() => (navigation as any).navigate('HomeTab', { screen: 'HomeScreen' })}
+                  onPress={handleGoToCatalog}
                   variant="primary"
                   style={styles.backShopButton}
                 />
@@ -371,7 +405,7 @@ export const CartScreen: React.FC = () => {
               </AccessibleText>
 
               <View style={styles.paymentOptions}>
-                {/* Opção Pix (Direta - Persona Gabriel) */}
+                {/* Opção Pix */}
                 <TouchableOpacity
                   style={[
                     styles.paymentOptionCard,
@@ -424,8 +458,9 @@ export const CartScreen: React.FC = () => {
             {/* Botões de Ação */}
             <View style={styles.checkoutActions}>
               <CustomButton
-                title="Finalizar Compra Segura"
+                title={isFinishing ? 'Processando Pedido...' : 'Finalizar Compra Segura'}
                 onPress={handleFinishOrder}
+                loading={isFinishing}
                 variant="success"
                 icon={<CheckCircle2 size={20} color={Colors.white} />}
               />
@@ -546,6 +581,17 @@ const styles = StyleSheet.create({
   itemPrice: {
     marginVertical: 4,
   },
+  topBackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 44,
+    minWidth: 44,
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    marginBottom: 8,
+  },
   qtyRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -560,14 +606,19 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   qtyButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   qtyNumber: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
   },
   deleteButton: {
-    padding: 6,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   summaryCard: {
     backgroundColor: Colors.white,
@@ -627,6 +678,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.cardBorder,
     borderRadius: 12,
     padding: 14,
+    minHeight: 52,
     backgroundColor: Colors.cleanCanvas,
   },
   paymentOptionCardSelected: {
@@ -647,6 +699,8 @@ const styles = StyleSheet.create({
   },
   backStepButton: {
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
     paddingVertical: 10,
   },
 });

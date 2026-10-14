@@ -33,7 +33,6 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { addToCart } = useCart();
   const { focusMode } = useAccessibility();
 
-  // Estados locais da peça
   const [selectedSize, setSelectedSize] = useState<string>(product.recommendedSize);
   const [selectedColor, setSelectedColor] = useState<string>(product.colors[0].name);
   const [isSuperZoom, setIsSuperZoom] = useState<boolean>(false);
@@ -41,7 +40,6 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const [imageError, setImageError] = useState<boolean>(false);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Limpeza de timeout ao desmontar a tela (Otimização de ciclo de vida)
   useEffect(() => {
     return () => {
       if (feedbackTimeoutRef.current) {
@@ -72,7 +70,6 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Navegação Superior */}
         <View style={styles.topNav}>
           <TouchableOpacity
             style={styles.backButton}
@@ -87,7 +84,6 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Imagem do Produto com Botão de Super Zoom (Teresa - Baixa Visão) */}
         <View style={styles.imageContainer}>
           {imageError ? (
             <View style={[styles.image, styles.fallbackContainer]}>
@@ -105,7 +101,6 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             />
           )}
 
-          {/* Botão de Super Zoom */}
           {!imageError && (
             <TouchableOpacity
               style={[styles.zoomButton, isSuperZoom && styles.zoomButtonActive]}
@@ -121,7 +116,6 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
           )}
         </View>
 
-        {/* Título e Preço */}
         <View style={styles.infoCard}>
           <AccessibleText size="xs" weight="bold" color={Colors.charcoalSlate}>
             {product.category.toUpperCase()}
@@ -200,7 +194,6 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             </View>
           </View>
 
-          {/* Seleção de Cores com Nomes Explícitos (Acessibilidade para Daltonismo) */}
           <View style={styles.selectionSection}>
             <AccessibleText size="sm" weight="bold" color={Colors.deepSpaceNavy} style={styles.sectionLabel}>
               Cor Selecionada: {selectedColor}
@@ -233,7 +226,6 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             </View>
           </View>
 
-          {/* Ficha Técnica Simplificada em Tópicos (Persona Gabriel - TDAH) */}
           <View style={styles.bulletSection}>
             <AccessibleText size="base" weight="bold" color={Colors.deepSpaceNavy} style={styles.bulletTitle}>
               Destaques e Sensação Tátil:
@@ -306,8 +298,12 @@ const styles = StyleSheet.create({
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    padding: 6,
+    gap: 8,
+    minHeight: 44,
+    minWidth: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
   },
   imageContainer: {
     width: '100%',
@@ -339,9 +335,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     backgroundColor: 'rgba(30, 27, 75, 0.85)',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    minHeight: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
   },
   zoomButtonActive: {
     backgroundColor: Colors.warmCoral,
@@ -427,13 +425,15 @@ const styles = StyleSheet.create({
   colorPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minHeight: 44,
+    borderRadius: 22,
     borderWidth: 1.5,
     borderColor: Colors.cardBorder,
     backgroundColor: Colors.white,
+    justifyContent: 'center',
   },
   colorPillSelected: {
     borderColor: Colors.electricIris,

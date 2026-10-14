@@ -16,11 +16,11 @@ export const AppNavigator: React.FC = () => {
         contentStyle: { backgroundColor: Colors.cleanCanvas },
       }}
     >
-      {/* Fluxo de Autenticação (Requisito Obrigatório da Atividade) */}
+      {/* Fluxo de Autenticação */}
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
 
-      {/* Navegação Principal por Abas Inferiores (Bônus de Navegação Avançada) */}
+      {/* Navegação Principal por Abas Inferiores */}
       <Stack.Screen name="MainTabs" component={TabNavigator} />
 
       {/* Fluxo Stack de Checkout e Sucesso */}

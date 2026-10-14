@@ -7,10 +7,10 @@ export interface Product {
   rating: number;
   reviewCount: number;
   imageUrl: string;
-  fabric: string; // Ex: '100% Algodão Penteado Toque Macio' (para acessibilidade visual)
-  bulletPoints: string[]; // Tópicos diretos para facilidade de leitura (TDAH/Dislexia)
+  fabric: string;
+  bulletPoints: string[];
   availableSizes: string[];
-  recommendedSize: string; // Recomendação inteligente do provador virtual
+  recommendedSize: string;
   colors: { name: string; hex: string }[];
   inStock: boolean;
 }

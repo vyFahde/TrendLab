@@ -50,7 +50,7 @@ export const AccessibilityBar: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Botão Modo Foco (TDAH / Calm UI) */}
+        {/* Modo Foco */}
         <TouchableOpacity
           style={[styles.toggleButton, focusMode && styles.toggleButtonActive]}
           onPress={toggleFocusMode}

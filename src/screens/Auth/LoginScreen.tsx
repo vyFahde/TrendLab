@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Alert, TouchableWithoutFeedback, Keyboard, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -10,7 +10,7 @@ import { CustomInput } from '../../components/CustomInput';
 import { CustomButton } from '../../components/CustomButton';
 import { useAuth } from '../../context/AuthContext';
 import Colors from '../../theme/colors';
-import { ShieldCheck, ArrowRight } from 'lucide-react-native';
+import { ShieldCheck, ArrowRight, AlertTriangle } from 'lucide-react-native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
@@ -19,7 +19,6 @@ interface LoginFormValues {
   senha: string;
 }
 
-// Esquema de validação com Yup para campos obrigatórios, formato de e-mail e tamanho mínimo de senha
 const loginValidationSchema = Yup.object().shape({
   email: Yup.string()
     .email('Digite um e-mail válido (exemplo: usuario@email.com)')
@@ -42,20 +41,28 @@ const DismissKeyboard: React.FC<{ children: React.ReactElement }> = ({ children 
 
 export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const { loginUser } = useAuth();
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const handleLoginSubmit = async (values: LoginFormValues) => {
+    setLoginError(null);
     try {
       const success = await loginUser(values.email.trim(), values.senha);
       if (success) {
         navigation.replace('MainTabs');
       } else {
-        Alert.alert(
-          'Falha no Login',
-          'E-mail não cadastrado ou senha incorreta. Verifique suas credenciais ou crie uma nova conta.'
-        );
+        const errorMsg =
+          'E-mail não cadastrado ou senha incorreta. Verifique suas credenciais ou crie uma nova conta.';
+        setLoginError(errorMsg);
+        if (Platform.OS !== 'web') {
+          Alert.alert('Falha no Login', errorMsg);
+        }
       }
     } catch (err) {
-      Alert.alert('Erro', 'Não foi possível realizar o login.');
+      const errorMsg = 'Não foi possível realizar o login. Tente novamente.';
+      setLoginError(errorMsg);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Erro', errorMsg);
+      }
     }
   };
 
@@ -72,7 +79,6 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
         >
           <DismissKeyboard>
             <View>
-          {/* Cabeçalho da Marca */}
           <View style={styles.brandSection}>
             <View style={styles.logoBadge}>
               <AccessibleText size="xl" weight="bold" color={Colors.white}>
@@ -91,7 +97,6 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
             </AccessibleText>
           </View>
 
-          {/* Card do Formulário com Formik e Yup */}
           <View style={styles.formCard}>
             <AccessibleText
               size="xl"
@@ -124,7 +129,6 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 isSubmitting,
               }) => (
                 <View>
-                  {/* Campo E-mail */}
                   <CustomInput
                     label="E-mail"
                     required
@@ -140,21 +144,40 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
                     helperText="Usaremos seu e-mail para confirmação dos pedidos."
                   />
 
-                  {/* Campo Senha */}
                   <CustomInput
                     label="Senha de Acesso"
                     required
                     placeholder="Mínimo 6 caracteres"
                     isPassword
                     value={values.senha}
-                    onChangeText={handleChange('senha')}
+                    onChangeText={(t) => {
+                      setLoginError(null);
+                      handleChange('senha')(t);
+                    }}
                     onBlur={handleBlur('senha')}
                     errorMessage={touched.senha && errors.senha ? errors.senha : undefined}
                     isValid={Boolean(touched.senha && !errors.senha && values.senha)}
                     helperText="Nunca compartilhe sua senha com ninguém."
                   />
 
-                  {/* Botão Principal de Login */}
+                  {loginError && (
+                    <View
+                      style={styles.errorAlertBox}
+                      accessibilityRole="alert"
+                      accessibilityLiveRegion="assertive"
+                    >
+                      <AlertTriangle size={20} color={Colors.alertCrimson} />
+                      <AccessibleText
+                        size="xs"
+                        weight="semiBold"
+                        color={Colors.alertCrimson}
+                        style={styles.errorAlertText}
+                      >
+                        {loginError}
+                      </AccessibleText>
+                    </View>
+                  )}
+
                   <CustomButton
                     title="Entrar na Plataforma"
                     onPress={() => handleSubmit()}
@@ -162,13 +185,12 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
                     variant="primary"
                     icon={<ArrowRight size={20} color={Colors.white} />}
                     style={styles.submitButton}
-                    accessibilityHint="Valida o formulário com Formik e entra na loja"
+                    accessibilityHint="Entra na loja"
                   />
                 </View>
               )}
             </Formik>
 
-            {/* Link para Criar Conta */}
             <View style={styles.footerRow}>
               <AccessibleText size="sm" color={Colors.charcoalSlate}>
                 Ainda não tem conta?
@@ -177,6 +199,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 onPress={() => navigation.navigate('Register')}
                 accessibilityRole="button"
                 accessibilityLabel="Ir para tela de cadastro de nova conta"
+                style={styles.registerLinkButton}
               >
                 <AccessibleText
                   size="sm"
@@ -250,12 +273,32 @@ const styles = StyleSheet.create({
   submitButton: {
     marginTop: 8,
   },
+  errorAlertBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  errorAlertText: {
+    flex: 1,
+    lineHeight: 18,
+  },
   footerRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 20,
     gap: 6,
+  },
+  registerLinkButton: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 6,
   },
   registerLink: {
     textDecorationLine: 'underline',

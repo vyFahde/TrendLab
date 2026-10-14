@@ -17,7 +17,7 @@ export const TabNavigator: React.FC = () => {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#A5B4FC', // Roxo suave de alto contraste contra Navy
+        tabBarActiveTintColor: '#A5B4FC',
         tabBarInactiveTintColor: '#94A3B8',
         tabBarStyle: {
           backgroundColor: Colors.deepSpaceNavy,
@@ -38,7 +38,7 @@ export const TabNavigator: React.FC = () => {
         component={HomeStackNavigator}
         options={{
           tabBarLabel: 'Início',
-          tabBarAccessibilityLabel: 'Aba Início: Catálogo de produtos inclusivos',
+          tabBarAccessibilityLabel: 'Início',
           tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
         }}
       />
@@ -47,7 +47,7 @@ export const TabNavigator: React.FC = () => {
         component={CartScreen}
         options={{
           tabBarLabel: 'Sacola',
-          tabBarAccessibilityLabel: `Aba Sacola: ${totalItems} itens no carrinho`,
+          tabBarAccessibilityLabel: totalItems > 0 ? `Sacola, ${totalItems} itens` : 'Sacola',
           tabBarBadge: totalItems > 0 ? totalItems : undefined,
           tabBarBadgeStyle: {
             backgroundColor: Colors.warmCoral,
@@ -63,7 +63,7 @@ export const TabNavigator: React.FC = () => {
         component={ProfileScreen}
         options={{
           tabBarLabel: 'Configurações',
-          tabBarAccessibilityLabel: 'Aba Configurações: Ajustes do aplicativo e acessibilidade',
+          tabBarAccessibilityLabel: 'Configurações',
           tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
         }}
       />

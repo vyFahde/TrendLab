@@ -28,7 +28,6 @@ export const HomeScreen: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('Todas');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Filtro de produtos
   const filteredProducts = useMemo(() => {
     return mockProducts.filter((product) => {
       const matchesCategory =
@@ -41,14 +40,13 @@ export const HomeScreen: React.FC = () => {
     });
   }, [selectedCategory, searchQuery]);
 
-  // Simulação de busca por voz acessível (Fluxo Persona Teresa)
   const handleVoiceSearchSimulation = () => {
     Alert.alert(
-      '🎙️ Busca por Voz Acessível',
-      'Simulação de comando de voz ativo. Selecione um termo falado:',
+      '🎙️ Busca por Voz',
+      'Selecione um termo para buscar:',
       [
         {
-          text: '"Calça jeans feminina"',
+          text: '"Calça jeans"',
           onPress: () => setSearchQuery('jeans'),
         },
         {
@@ -70,7 +68,6 @@ export const HomeScreen: React.FC = () => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Saudação e Título Acessível */}
         <View style={styles.header}>
           <AccessibleText size="xs" weight="bold" color={Colors.electricIris} style={styles.brandTag}>
             TRENDLAB • MODA ACESSÍVEL
@@ -83,7 +80,6 @@ export const HomeScreen: React.FC = () => {
           </AccessibleText>
         </View>
 
-        {/* Barra de Pesquisa com Busca por Voz (WCAG AAA) */}
         <View style={styles.searchRow}>
           <View style={styles.searchInputWrapper}>
             <Search size={20} color={Colors.charcoalSlate} />
@@ -114,7 +110,6 @@ export const HomeScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Banner Informativo (Oculto no Modo Foco para Calm UI - TDAH) */}
         {!focusMode && (
           <View style={styles.bannerContainer}>
             <View style={styles.bannerBadge}>
@@ -132,7 +127,6 @@ export const HomeScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Carrossel de Categorias de Baixa Complexidade */}
         <View style={styles.categoriesSection}>
           <AccessibleText size="sm" weight="bold" color={Colors.deepSpaceNavy} style={styles.sectionTitle}>
             Filtrar por Categoria:
@@ -168,14 +162,18 @@ export const HomeScreen: React.FC = () => {
           </ScrollView>
         </View>
 
-        {/* Lista de Produtos */}
         <View style={styles.productsSection}>
           <View style={styles.productsHeader}>
             <AccessibleText size="base" weight="bold" color={Colors.deepSpaceNavy}>
               Peças Disponíveis ({filteredProducts.length})
             </AccessibleText>
             {selectedCategory !== 'Todas' && (
-              <TouchableOpacity onPress={() => setSelectedCategory('Todas')}>
+              <TouchableOpacity
+                onPress={() => setSelectedCategory('Todas')}
+                style={styles.clearFilterButton}
+                accessibilityRole="button"
+                accessibilityLabel="Limpar filtro de categoria e exibir todas"
+              >
                 <AccessibleText size="xs" weight="bold" color={Colors.warmCoral}>
                   Limpar filtro
                 </AccessibleText>
@@ -255,7 +253,10 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   clearSearch: {
-    padding: 6,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   voiceButton: {
     backgroundColor: Colors.electricIris,
@@ -297,12 +298,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   categoryChip: {
+    minHeight: 44,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 20,
+    borderRadius: 22,
     backgroundColor: Colors.white,
     borderWidth: 1.5,
     borderColor: Colors.cardBorder,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   categoryChipSelected: {
     backgroundColor: Colors.deepSpaceNavy,
@@ -317,12 +321,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
+  clearFilterButton: {
+    minHeight: 44,
+    minWidth: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
   emptyContainer: {
     alignItems: 'center',
     paddingVertical: 36,
   },
   resetButton: {
+    minHeight: 44,
+    minWidth: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginTop: 12,
-    padding: 8,
+    paddingHorizontal: 16,
   },
 });

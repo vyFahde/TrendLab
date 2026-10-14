@@ -40,7 +40,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
           />
         )}
         
-        {/* Badge de Promoção (oculto no Modo Foco para evitar sobrecarga visual - TDAH) */}
         {!focusMode && product.originalPrice && (
           <View style={styles.promoBadge}>
             <AccessibleText size="xs" weight="bold" color={Colors.white}>
@@ -49,7 +48,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
           </View>
         )}
 
-        {/* Badge de Tamanho Ideal com Success Emerald */}
         <View style={styles.sizeBadge}>
           <Check size={12} color={Colors.white} />
           <AccessibleText size="xs" weight="bold" color={Colors.white} style={styles.sizeBadgeText}>
@@ -73,7 +71,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
           {product.name}
         </AccessibleText>
 
-        {/* Avaliação em estrelas (simplificada no Modo Foco) */}
         {!focusMode && (
           <View style={styles.ratingRow}>
             <Star size={14} color="#F59E0B" fill="#F59E0B" />
@@ -83,7 +80,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
           </View>
         )}
 
-        {/* Informação rápida de tecido (Teresa - Baixa Visão) */}
         <AccessibleText
           size="xs"
           color={Colors.charcoalSlate}
@@ -93,7 +89,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
           🧵 {product.fabric}
         </AccessibleText>
 
-        {/* Preço com alto contraste */}
         <View style={styles.priceRow}>
           <AccessibleText size="lg" weight="bold" color={Colors.electricIris}>
             {product.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}

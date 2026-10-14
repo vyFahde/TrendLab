@@ -37,15 +37,14 @@ export const CustomInput: React.FC<CustomInputProps> = ({
   const hasError = Boolean(errorMessage);
 
   const getBorderColor = () => {
-    if (hasError) return Colors.alertCrimson; // #B91C1C
-    if (isValid && value && value.length > 0) return Colors.successEmerald; // #15803D
+    if (hasError) return Colors.alertCrimson;
+    if (isValid && value && value.length > 0) return Colors.successEmerald;
     if (isFocused) return Colors.electricIris;
     return Colors.inputBorder;
   };
 
   return (
     <View style={styles.wrapper}>
-      {/* Label acessível com indicação de obrigatório */}
       <View style={styles.labelRow}>
         <AccessibleText size="sm" weight="semiBold" color={Colors.highInkSlate}>
           {label}
@@ -57,7 +56,6 @@ export const CustomInput: React.FC<CustomInputProps> = ({
         )}
       </View>
 
-      {/* Campo de Entrada */}
       <View
         style={[
           styles.inputContainer,
@@ -83,21 +81,18 @@ export const CustomInput: React.FC<CustomInputProps> = ({
           {...rest}
         />
 
-        {/* Ícone de Sucesso */}
         {isValid && !hasError && value && value.length > 0 && (
           <View style={styles.statusIcon}>
             <CheckCircle2 size={20} color={Colors.successEmerald} />
           </View>
         )}
 
-        {/* Ícone de Erro */}
         {hasError && (
           <View style={styles.statusIcon}>
             <AlertTriangle size={20} color={Colors.alertCrimson} />
           </View>
         )}
 
-        {/* Alternar visibilidade de Senha */}
         {isPassword && (
           <TouchableOpacity
             style={styles.eyeButton}
@@ -114,7 +109,6 @@ export const CustomInput: React.FC<CustomInputProps> = ({
         )}
       </View>
 
-      {/* Mensagem de Erro com Alto Contraste Alert Crimson (#B91C1C) */}
       {hasError && (
         <View style={styles.messageRow}>
           <AccessibleText size="xs" weight="semiBold" color={Colors.alertCrimson}>
@@ -123,7 +117,6 @@ export const CustomInput: React.FC<CustomInputProps> = ({
         </View>
       )}
 
-      {/* Texto de Ajuda (quando não houver erro) */}
       {!hasError && helperText && (
         <View style={styles.messageRow}>
           <AccessibleText size="xs" color={Colors.charcoalSlate}>
@@ -152,10 +145,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderRadius: 12,
     paddingHorizontal: 14,
-    minHeight: 52, // Alvo de toque confortável
+    minHeight: 52,
   },
   errorContainer: {
-    backgroundColor: '#FEF2F2', // Fundo levemente avermelhado para reforço visual
+    backgroundColor: '#FEF2F2',
   },
   textInput: {
     flex: 1,
@@ -167,7 +160,10 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   eyeButton: {
-    padding: 6,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginLeft: 4,
   },
   messageRow: {

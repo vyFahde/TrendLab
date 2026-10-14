@@ -19,7 +19,7 @@ O **TrendLab** é uma plataforma mobile de e-commerce de moda desenvolvida com f
 | :--- | :--- | :--- | :--- |
 | **Deep Space Navy** | `#1E1B4B` | Cabeçalhos, Barra Inferior e Destaques | Contraste **16.5:1 (AAA)** |
 | **Electric Iris** | `#4338CA` | Botões Principais de Ação (CTA) | Contraste **7.2:1 (AAA)** |
-| **Warm Coral** | `#E0533C` | Badges de Foco e Destaques Importantes | Contraste **4.8:1 (AA)** |
+| **Warm Coral** | `#C43D27` | Badges de Foco e Destaques Importantes | Contraste **5.2:1 (AA com branco) / 4.96:1 (Clean Canvas)** |
 | **Clean Canvas** | `#F8FAFC` | Fundo Principal das Telas (Anti-fadiga) | Descanso Visual |
 | **High-Ink Slate** | `#0F172A` | Títulos, Textos Primários e Preços | Contraste **17.8:1 (AAA)** |
 | **Charcoal Slate** | `#334155` | Legendas, Descrições e Subtítulos | Contraste **8.5:1 (AAA)** |
@@ -60,12 +60,12 @@ TrendLab/
 ├── app.json                    # Configurações do Expo
 ├── eas.json                    # Canais de deploy do EAS
 └── src/
-    ├── components/             # Componentes modulares e reutilizáveis
-    ├── context/                # Context API (Acessibilidade e Sacola)
+    ├── components/             # Componentes modulares e reutilizáveis (CustomButton, CustomInput...)
+    ├── context/                # Context API (Acessibilidade, Autenticação e Sacola)
     ├── data/                   # Base de dados de produtos inclusivos
     ├── navigation/             # Navegação Stack e Bottom Tabs
     ├── screens/                # Telas da aplicação
-    ├── theme/                  # Paleta oficial de cores
+    ├── theme/                  # Tokens de cores (colors.ts) e espaçamento/raios (spacing.ts)
     └── types/                  # Tipagem estrita com TypeScript
 ```
 

@@ -48,7 +48,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginUser = async (email: string, password?: string): Promise<boolean> => {
     const cleanEmail = email.trim().toLowerCase();
 
-    // Contas de teste padrão pré-configuradas (requerem a senha correta)
+    // Contas de teste pré-configuradas
     const defaultAccounts: Record<string, { name: string; password?: string }> = {
       'teresa.tavares@trendlab.com': { name: 'Teresa Tavares', password: '123456' },
       'gabriel.gomes@trendlab.com': { name: 'Gabriel Gomes', password: '123456' },
@@ -63,10 +63,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(loggedUser);
         return true;
       }
-      return false; // Senha incorreta
+      return false;
     }
 
-    // Busca conta cadastrada pelo usuário no dispositivo
+    // Busca conta local salva
     try {
       const savedAccountStr = await AsyncStorage.getItem(`@trendlab:account:${cleanEmail}`);
       if (savedAccountStr) {
@@ -77,13 +77,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(loggedUser);
           return true;
         }
-        return false; // Senha incorreta
+        return false;
       }
     } catch (e) {
       console.warn('Erro ao verificar credenciais', e);
     }
 
-    // Conta não encontrada no dispositivo
     return false;
   };
 
