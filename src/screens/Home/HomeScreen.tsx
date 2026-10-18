@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -18,10 +18,10 @@ import { AccessibleText } from '../../components/AccessibleText';
 import { AccessibilityBar } from '../../components/AccessibilityBar';
 import { ProductCard } from '../../components/ProductCard';
 import { CustomButton } from '../../components/CustomButton';
-import { mockProducts } from '../../data/mockProducts';
 import { useAccessibility } from '../../context/AccessibilityContext';
 import { useUsuarioStore } from '../../store/usuario-store';
 import { useToastStore } from '../../store/useToastStore';
+import { api } from '../../services/api';
 import Colors from '../../theme/colors';
 import {
   Search,
@@ -38,7 +38,13 @@ const sizeFilters = ['Todos', 'P', 'M', 'G', 'GG', '38', '40', '42', '44'];
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const { focusMode, highContrast, darkMode, palette } = useAccessibility();
-  const { userData, usuario } = useUsuarioStore();
+  const {
+    userData,
+    usuario,
+    products,
+    fetchProductsFromApi,
+    isSyncingApi,
+  } = useUsuarioStore();
   const { showToast } = useToastStore();
 
   const [selectedCategory, setSelectedCategory] = useState('Todas');
@@ -48,8 +54,16 @@ export const HomeScreen: React.FC = () => {
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [voiceModalVisible, setVoiceModalVisible] = useState(false);
 
+  useEffect(() => {
+    api.getProducts(selectedCategory);
+  }, [selectedCategory]);
+
+  const handleRefreshCatalog = async () => {
+    await fetchProductsFromApi();
+  };
+
   const filteredProducts = useMemo(() => {
-    const result = mockProducts.filter((product) => {
+    const result = products.filter((product) => {
       const matchesCategory =
         selectedCategory === 'Todas' || product.category === selectedCategory;
       const matchesSize =
@@ -72,7 +86,7 @@ export const HomeScreen: React.FC = () => {
       return [...result].sort((a, b) => b.price - a.price);
     }
     return result;
-  }, [selectedCategory, selectedSizeFilter, sortOrder, searchQuery]);
+  }, [products, selectedCategory, selectedSizeFilter, sortOrder, searchQuery]);
 
   const handleVoiceSearchSimulation = () => {
     if (Platform.OS === 'web') {
@@ -80,7 +94,7 @@ export const HomeScreen: React.FC = () => {
       return;
     }
     Alert.alert(
-      '🎙️ Busca por Voz Acessível',
+      'Busca por Voz Acessível',
       'Selecione um comando de voz simulado para filtrar o catálogo:',
       [
         {
@@ -358,6 +372,8 @@ export const HomeScreen: React.FC = () => {
         )}
         ListHeaderComponent={renderListHeader()}
         ListEmptyComponent={renderEmptyState()}
+        refreshing={isSyncingApi}
+        onRefresh={handleRefreshCatalog}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}

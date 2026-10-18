@@ -40,12 +40,20 @@ import {
   CheckCircle2,
   Moon,
   Sun,
+  Trash2,
 } from 'lucide-react-native';
 
 export const ProfileScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user, logoutUser } = useAuth();
-  const { usuario, userData, avatarUri, setAvatarUri, orders } = useUsuarioStore();
+  const {
+    usuario,
+    userData,
+    avatarUri,
+    setAvatarUri,
+    orders,
+    removeOrder,
+  } = useUsuarioStore();
   const { showToast } = useToastStore();
 
   const {
@@ -304,7 +312,7 @@ export const ProfileScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Histórico de Pedidos (PDF 3.1 + Zustand) */}
+        {/* Histórico de Pedidos */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Package size={20} color={palette.iconAccent} />
@@ -521,7 +529,16 @@ export const ProfileScreen: React.FC = () => {
         onRequestClose={() => setSelectedOrder(null)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+          <View
+            style={[
+              styles.modalSheet,
+              {
+                backgroundColor: palette.surface,
+                borderTopWidth: highContrast ? 2 : 0,
+                borderColor: palette.borderStrong,
+              },
+            ]}
+          >
             <View style={styles.modalHeader}>
               <AccessibleText size="lg" weight="bold" color={Colors.deepSpaceNavy}>
                 Detalhes do Pedido #{selectedOrder?.id}
@@ -531,7 +548,7 @@ export const ProfileScreen: React.FC = () => {
                 style={styles.closeModalBtn}
                 accessibilityRole="button"
               >
-                <X size={22} color={Colors.highInkSlate} />
+                <X size={22} color={palette.iconPrimary} />
               </TouchableOpacity>
             </View>
 
@@ -548,7 +565,12 @@ export const ProfileScreen: React.FC = () => {
                   {selectedOrder.date}
                 </AccessibleText>
 
-                <View style={styles.modalItemsBox}>
+                <View
+                  style={[
+                    styles.modalItemsBox,
+                    { backgroundColor: palette.surfaceSecondary },
+                  ]}
+                >
                   <AccessibleText size="xs" weight="bold" color={Colors.deepSpaceNavy}>
                     Itens comprados:
                   </AccessibleText>
@@ -566,6 +588,29 @@ export const ProfileScreen: React.FC = () => {
                     currency: 'BRL',
                   })}
                 </AccessibleText>
+
+                <TouchableOpacity
+                  style={[
+                    styles.photoActionBtn,
+                    {
+                      marginTop: 8,
+                      backgroundColor: palette.danger,
+                    },
+                  ]}
+                  onPress={async () => {
+                    const orderIdToRemove = selectedOrder.id;
+                    await removeOrder(orderIdToRemove);
+                    setSelectedOrder(null);
+                    showToast(`Pedido #${orderIdToRemove} cancelado com sucesso.`, 'info');
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancelar este pedido"
+                >
+                  <Trash2 size={16} color={Colors.white} />
+                  <AccessibleText size="xs" weight="bold" color={Colors.white}>
+                    Cancelar Pedido
+                  </AccessibleText>
+                </TouchableOpacity>
               </View>
             )}
           </View>

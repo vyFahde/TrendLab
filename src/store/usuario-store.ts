@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { FitProfile, OrderRecord } from '../types';
+import { FitProfile, OrderRecord, Product } from '../types';
+import { mockProducts } from '../data/mockProducts';
+import { api, ApiStatusInfo, sanitizeProductDescriptions } from '../services/api';
 
 export interface UsuarioData {
   name: string;
@@ -11,13 +13,20 @@ export interface UsuarioData {
 interface UsuarioStore {
   usuario: string | null;
   userData: UsuarioData | null;
+  jwtToken: string | null;
   avatarUri: string | null;
   fitProfile: FitProfile;
   orders: OrderRecord[];
-  setUsuario: (email: string | null, name?: string) => void;
+  products: Product[];
+  apiStatus: ApiStatusInfo | null;
+  isSyncingApi: boolean;
+  setUsuario: (email: string | null, name?: string, jwt?: string | null) => void;
   setAvatarUri: (uri: string | null) => Promise<void>;
   updateFitProfile: (profile: Partial<FitProfile>) => Promise<void>;
   addOrder: (order: OrderRecord) => Promise<void>;
+  removeOrder: (orderId: string) => Promise<void>;
+  fetchProductsFromApi: () => Promise<{ count: number; mode: 'local-strapi' | 'cloud-rest' }>;
+  syncWithBackend: () => Promise<ApiStatusInfo>;
   hydrateFromStorage: () => Promise<void>;
 }
 
@@ -70,13 +79,18 @@ const defaultFitProfile: FitProfile = {
 export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
   usuario: null,
   userData: null,
+  jwtToken: null,
   avatarUri: null,
   fitProfile: defaultFitProfile,
   orders: [],
+  products: mockProducts.map(sanitizeProductDescriptions),
+  apiStatus: null,
+  isSyncingApi: false,
 
-  setUsuario: (email, name) =>
+  setUsuario: (email, name, jwt) =>
     set((state) => ({
       usuario: email,
+      jwtToken: jwt !== undefined ? jwt : email ? state.jwtToken : null,
       userData: email
         ? {
             email,
@@ -128,7 +142,11 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
   },
 
   addOrder: async (order) => {
-    const nextOrders = [order, ...get().orders];
+    const { usuario, jwtToken, orders } = get();
+    // Envia POST /api/pedidos para o WebService REST com cabeçalho Authorization: Bearer JWT
+    await api.createOrder(order, usuario, jwtToken);
+
+    const nextOrders = [order, ...orders.filter((o) => o.id !== order.id)];
     set({ orders: nextOrders });
     try {
       await AsyncStorage.setItem('@trendlab:orders', JSON.stringify(nextOrders));
@@ -137,19 +155,95 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
     }
   },
 
+  removeOrder: async (orderId) => {
+    const { jwtToken, orders } = get();
+    // Envia DELETE /api/pedidos/:id para o WebService REST
+    await api.deleteOrder(orderId, jwtToken);
+
+    const nextOrders = orders.filter((o) => o.id !== orderId);
+    set({ orders: nextOrders });
+    try {
+      await AsyncStorage.setItem('@trendlab:orders', JSON.stringify(nextOrders));
+    } catch (e) {
+      console.warn('Erro ao remover pedido:', e);
+    }
+  },
+
+  fetchProductsFromApi: async () => {
+    set({ isSyncingApi: true });
+    try {
+      const res = await api.getProducts();
+      const health = await api.checkHealth();
+      set({
+        products: res.products,
+        apiStatus: health,
+        isSyncingApi: false,
+      });
+      return { count: res.products.length, mode: res.source };
+    } catch {
+      set({ isSyncingApi: false });
+      return { count: get().products.length, mode: 'cloud-rest' };
+    }
+  },
+
+  syncWithBackend: async () => {
+    set({ isSyncingApi: true });
+    try {
+      await api.initBaseUrl();
+      const [health, prodRes, remoteOrders] = await Promise.all([
+        api.checkHealth(),
+        api.getProducts(),
+        api.getOrders(get().usuario, get().jwtToken),
+      ]);
+
+      let mergedOrders = get().orders;
+      if (remoteOrders && remoteOrders.orders.length > 0) {
+        const existingIds = new Set(mergedOrders.map((o) => o.id));
+        const newFromApi = remoteOrders.orders.filter((o) => !existingIds.has(o.id));
+        mergedOrders = [...newFromApi, ...mergedOrders];
+        await AsyncStorage.setItem('@trendlab:orders', JSON.stringify(mergedOrders));
+      }
+
+      set({
+        apiStatus: health,
+        products: prodRes.products,
+        orders: mergedOrders,
+        isSyncingApi: false,
+      });
+      return health;
+    } catch {
+      set({ isSyncingApi: false });
+      const fallback: ApiStatusInfo = {
+        online: false,
+        mode: 'cloud-rest',
+        statusCode: 503,
+        latencyMs: 0,
+        baseUrl: api.getBaseUrl(),
+      };
+      set({ apiStatus: fallback });
+      return fallback;
+    }
+  },
+
   hydrateFromStorage: async () => {
     try {
-      const [savedAvatar, savedFit, savedOrders] = await Promise.all([
+      await api.initBaseUrl();
+      const [savedAvatar, savedFit, savedOrders, savedJwt] = await Promise.all([
         AsyncStorage.getItem('@trendlab:avatar_uri'),
         AsyncStorage.getItem('@trendlab:fit_profile'),
         AsyncStorage.getItem('@trendlab:orders'),
+        AsyncStorage.getItem('@trendlab:jwt_token'),
       ]);
 
       set((state) => ({
         avatarUri: savedAvatar || state.avatarUri,
         fitProfile: savedFit ? JSON.parse(savedFit) : state.fitProfile,
         orders: savedOrders ? JSON.parse(savedOrders) : state.orders,
+        jwtToken: savedJwt || state.jwtToken,
       }));
+
+      // Sincroniza catálogo e status com o WebService em segundo plano
+      get().syncWithBackend();
     } catch (e) {
       console.warn('Erro ao hidratar store Zustand:', e);
     }

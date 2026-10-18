@@ -422,13 +422,13 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
           >
             <View style={styles.recommenderHeader}>
               <Sparkles size={18} color={palette.success} />
-              <AccessibleText size="sm" weight="bold" color={palette.success}>
+              <AccessibleText size="base" weight="bold" color={palette.success}>
                 Provador Virtual: Tamanho Ideal Sugerido
               </AccessibleText>
             </View>
-            <AccessibleText size="sm" color={palette.textPrimary} style={styles.recommenderBody}>
+            <AccessibleText size="base" color={palette.textPrimary} style={styles.recommenderBody}>
               Com base no seu perfil anatômico ({fitProfile.heightCm}cm, {fitProfile.weightKg}kg), o tamanho{' '}
-              <AccessibleText size="sm" weight="bold" color={palette.heading}>
+              <AccessibleText size="base" weight="bold" color={palette.heading}>
                 "{effectiveIdealSize}"
               </AccessibleText>{' '}
               proporcionará o caimento ideal e sem aperto.
@@ -482,13 +482,10 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
                     </AccessibleText>
                     {isIdeal && (
                       <View style={styles.idealBadge}>
-                        <AccessibleText
-                          size="xs"
-                          weight="bold"
+                        <Check
+                          size={11}
                           color={isSelected ? palette.accentContrastText : palette.success}
-                        >
-                          ★
-                        </AccessibleText>
+                        />
                       </View>
                     )}
                   </TouchableOpacity>
@@ -538,12 +535,12 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
           </View>
 
           <View style={[styles.bulletSection, { borderTopColor: palette.border }]}>
-            <AccessibleText size="base" weight="bold" color={palette.heading} style={styles.bulletTitle}>
+            <AccessibleText size="lg" weight="bold" color={palette.heading} style={styles.bulletTitle}>
               Destaques e Sensação Tátil:
             </AccessibleText>
             <View style={[styles.fabricBadge, { backgroundColor: palette.surfaceSecondary }]}>
               <Info size={16} color={palette.iconPrimary} />
-              <AccessibleText size="xs" weight="bold" color={palette.textPrimary}>
+              <AccessibleText size="sm" weight="bold" color={palette.textPrimary}>
                 Tecido: {product.fabric}
               </AccessibleText>
             </View>
@@ -551,7 +548,7 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             {product.bulletPoints.map((point, index) => (
               <View key={index} style={styles.bulletItem}>
                 <View style={[styles.bulletDot, { backgroundColor: palette.accent }]} />
-                <AccessibleText size="sm" color={palette.textSecondary} style={styles.bulletText}>
+                <AccessibleText size="base" color={palette.textSecondary} style={styles.bulletText}>
                   {point}
                 </AccessibleText>
               </View>

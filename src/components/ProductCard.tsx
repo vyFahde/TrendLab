@@ -121,12 +121,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
         )}
 
         <AccessibleText
-          size="xs"
+          size="sm"
           color={palette.textSecondary}
-          numberOfLines={1}
+          numberOfLines={2}
           style={styles.fabric}
         >
-          🧵 {product.fabric}
+          {product.fabric}
         </AccessibleText>
 
         <View style={styles.priceRow}>

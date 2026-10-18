@@ -17,7 +17,6 @@ import { AccessibilityBar } from '../../components/AccessibilityBar';
 import { CustomInput } from '../../components/CustomInput';
 import { CustomButton } from '../../components/CustomButton';
 import { ProductCard } from '../../components/ProductCard';
-import { mockProducts } from '../../data/mockProducts';
 import { useUsuarioStore } from '../../store/usuario-store';
 import { useToastStore } from '../../store/useToastStore';
 import { useAccessibility } from '../../context/AccessibilityContext';
@@ -41,7 +40,7 @@ const fitOptions: { key: 'justo' | 'regular' | 'solto'; label: string; desc: str
 
 export const FittingRoomScreen: React.FC = () => {
   const navigation = useNavigation<any>();
-  const { fitProfile, updateFitProfile } = useUsuarioStore();
+  const { fitProfile, updateFitProfile, products } = useUsuarioStore();
   const { showToast } = useToastStore();
   const { palette, highContrast, darkMode } = useAccessibility();
 
@@ -158,12 +157,12 @@ export const FittingRoomScreen: React.FC = () => {
   };
 
   const compatibleProducts = useMemo(() => {
-    return mockProducts.filter(
+    return products.filter(
       (p) =>
         p.availableSizes.includes(fitProfile.recommendedLetterSize) ||
         p.availableSizes.includes(fitProfile.recommendedNumericSize)
     );
-  }, [fitProfile.recommendedLetterSize, fitProfile.recommendedNumericSize]);
+  }, [products, fitProfile.recommendedLetterSize, fitProfile.recommendedNumericSize]);
 
   const handleOpenProduct = (product: Product) => {
     navigation.navigate('HomeTab', {

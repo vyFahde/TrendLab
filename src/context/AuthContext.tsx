@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUsuarioStore } from '../store/usuario-store';
+import { api, createClientSideJwt } from '../services/api';
 
 export interface User {
   name: string;
   email: string;
+  jwt?: string;
 }
 
 interface AuthContextData {
@@ -26,11 +28,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const loadStoredUser = async () => {
       try {
         await hydrateFromStorage();
-        const storedUser = await AsyncStorage.getItem('@trendlab:active_user');
+        const [storedUser, storedJwt] = await Promise.all([
+          AsyncStorage.getItem('@trendlab:active_user'),
+          AsyncStorage.getItem('@trendlab:jwt_token'),
+        ]);
         if (storedUser) {
           const parsed: User = JSON.parse(storedUser);
-          setUser(parsed);
-          setUsuario(parsed.email, parsed.name);
+          const token = storedJwt || parsed.jwt || createClientSideJwt(parsed.email, parsed.name);
+          setUser({ ...parsed, jwt: token });
+          setUsuario(parsed.email, parsed.name, token);
         }
       } catch (error) {
         console.warn('Erro ao carregar usuário ativo', error);
@@ -42,62 +48,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [hydrateFromStorage, setUsuario]);
 
   const registerUser = async (name: string, email: string, password: string) => {
-    const newUser = { name, email };
-    // Salva o cadastro local
-    await AsyncStorage.setItem(`@trendlab:account:${email.toLowerCase()}`, JSON.stringify({ name, email, password }));
-    // Define como usuário ativo da sessão
-    await AsyncStorage.setItem('@trendlab:active_user', JSON.stringify(newUser));
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = name.trim();
+
+    // Salva o cadastro local e envia POST /api/auth/local/register ao WebService REST/Strapi
+    await AsyncStorage.setItem(
+      `@trendlab:account:${cleanEmail}`,
+      JSON.stringify({ name: cleanName, email: cleanEmail, password })
+    );
+
+    const apiAuth = await api.register(cleanName, cleanEmail, password);
+    const newUser: User = {
+      name: apiAuth.user.username || cleanName,
+      email: apiAuth.user.email || cleanEmail,
+      jwt: apiAuth.jwt,
+    };
+
+    await Promise.all([
+      AsyncStorage.setItem('@trendlab:active_user', JSON.stringify(newUser)),
+      AsyncStorage.setItem('@trendlab:jwt_token', apiAuth.jwt),
+    ]);
+
     setUser(newUser);
-    setUsuario(email, name);
+    setUsuario(newUser.email, newUser.name, apiAuth.jwt);
   };
 
   const loginUser = async (email: string, password?: string): Promise<boolean> => {
     const cleanEmail = email.trim().toLowerCase();
 
-    // Contas de teste pré-configuradas
-    const defaultAccounts: Record<string, { name: string; password?: string }> = {
-      'teresa.tavares@trendlab.com': { name: 'Teresa Tavares', password: '123456' },
-      'gabriel.gomes@trendlab.com': { name: 'Gabriel Gomes', password: '123456' },
-      'admin@trendlab.com': { name: 'Administrador TrendLab', password: '123456' },
-    };
-
-    if (defaultAccounts[cleanEmail]) {
-      const defaultAcc = defaultAccounts[cleanEmail];
-      if (!password || defaultAcc.password === password) {
-        const loggedUser = { name: defaultAcc.name, email: cleanEmail };
-        await AsyncStorage.setItem('@trendlab:active_user', JSON.stringify(loggedUser));
-        setUser(loggedUser);
-        setUsuario(loggedUser.email, loggedUser.name);
-        return true;
-      }
-      return false;
-    }
-
-    // Busca conta local salva
-    try {
-      const savedAccountStr = await AsyncStorage.getItem(`@trendlab:account:${cleanEmail}`);
-      if (savedAccountStr) {
-        const savedAccount = JSON.parse(savedAccountStr);
-        if (!password || savedAccount.password === password) {
-          const loggedUser = { name: savedAccount.name, email: savedAccount.email };
-          await AsyncStorage.setItem('@trendlab:active_user', JSON.stringify(loggedUser));
-          setUser(loggedUser);
-          setUsuario(loggedUser.email, loggedUser.name);
-          return true;
-        }
-        return false;
-      }
-    } catch (e) {
-      console.warn('Erro ao verificar credenciais', e);
+    // Autentica via WebService REST/Strapi (POST /api/auth/local) ou validação local com geração de JWT
+    const authResult = await api.login(cleanEmail, password);
+    if (authResult && authResult.ok) {
+      const loggedUser: User = {
+        name: authResult.user.username,
+        email: authResult.user.email,
+        jwt: authResult.jwt,
+      };
+      await Promise.all([
+        AsyncStorage.setItem('@trendlab:active_user', JSON.stringify(loggedUser)),
+        AsyncStorage.setItem('@trendlab:jwt_token', authResult.jwt),
+      ]);
+      setUser(loggedUser);
+      setUsuario(loggedUser.email, loggedUser.name, authResult.jwt);
+      return true;
     }
 
     return false;
   };
 
   const logoutUser = async () => {
-    await AsyncStorage.removeItem('@trendlab:active_user');
+    await Promise.all([
+      AsyncStorage.removeItem('@trendlab:active_user'),
+      AsyncStorage.removeItem('@trendlab:jwt_token'),
+    ]);
     setUser(null);
-    setUsuario(null);
+    setUsuario(null, undefined, null);
   };
 
   return (
