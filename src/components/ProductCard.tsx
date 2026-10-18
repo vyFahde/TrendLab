@@ -4,7 +4,7 @@ import { Product } from '../types';
 import { AccessibleText } from './AccessibleText';
 import Colors from '../theme/colors';
 import { useAccessibility } from '../context/AccessibilityContext';
-import { Star, Sparkles, Check, ShoppingBag } from 'lucide-react-native';
+import { Star, Check, ShoppingBag } from 'lucide-react-native';
 
 interface ProductCardProps {
   product: Product;
@@ -12,7 +12,7 @@ interface ProductCardProps {
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) => {
-  const { focusMode, highContrast } = useAccessibility();
+  const { focusMode, highContrast, darkMode, palette } = useAccessibility();
   const [imageError, setImageError] = useState(false);
 
   return (
@@ -23,13 +23,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
       accessibilityLabel={`Produto: ${product.name}. Categoria: ${product.category}. Preço: ${product.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}. Tamanho recomendado: ${product.recommendedSize}`}
       style={[
         styles.card,
-        highContrast && styles.cardHighContrast,
+        {
+          backgroundColor: palette.surface,
+          borderColor: palette.border,
+          borderWidth: palette.borderWidth,
+        },
       ]}
     >
       <View style={styles.imageContainer}>
         {imageError ? (
-          <View style={[styles.image, styles.fallbackContainer]}>
-            <ShoppingBag size={36} color={Colors.disabled} />
+          <View style={[styles.image, styles.fallbackContainer, { backgroundColor: palette.surfaceSecondary }]}>
+            <ShoppingBag size={36} color={palette.iconPrimary} />
           </View>
         ) : (
           <Image
@@ -39,32 +43,59 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
             onError={() => setImageError(true)}
           />
         )}
-        
+
         {!focusMode && product.originalPrice && (
-          <View style={styles.promoBadge}>
-            <AccessibleText size="xs" weight="bold" color={Colors.white}>
+          <View
+            style={[
+              styles.promoBadge,
+              highContrast && {
+                backgroundColor: '#000000',
+                borderWidth: 2,
+                borderColor: '#FACC15',
+              },
+            ]}
+          >
+            <AccessibleText
+              size="xs"
+              weight="bold"
+              color={highContrast ? '#FACC15' : Colors.white}
+            >
               OFERTA
             </AccessibleText>
           </View>
         )}
 
-        <View style={styles.sizeBadge}>
-          <Check size={12} color={Colors.white} />
-          <AccessibleText size="xs" weight="bold" color={Colors.white} style={styles.sizeBadgeText}>
+        <View
+          style={[
+            styles.sizeBadge,
+            highContrast && {
+              backgroundColor: '#052E16',
+              borderWidth: 2,
+              borderColor: '#4ADE80',
+            },
+          ]}
+        >
+          <Check size={13} color={highContrast ? '#4ADE80' : Colors.white} />
+          <AccessibleText
+            size="xs"
+            weight="bold"
+            color={highContrast ? '#4ADE80' : Colors.white}
+            style={styles.sizeBadgeText}
+          >
             Tam: {product.recommendedSize}
           </AccessibleText>
         </View>
       </View>
 
       <View style={styles.details}>
-        <AccessibleText size="xs" weight="semiBold" color={Colors.charcoalSlate}>
-          {product.category}
+        <AccessibleText size="xs" weight="semiBold" color={palette.textSecondary}>
+          {product.category.toUpperCase()}
         </AccessibleText>
 
         <AccessibleText
           size="base"
           weight="bold"
-          color={Colors.highInkSlate}
+          color={palette.textPrimary}
           numberOfLines={2}
           style={styles.name}
         >
@@ -73,16 +104,25 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
 
         {!focusMode && (
           <View style={styles.ratingRow}>
-            <Star size={14} color="#F59E0B" fill="#F59E0B" />
-            <AccessibleText size="xs" weight="semiBold" color={Colors.charcoalSlate} style={styles.ratingText}>
-              {product.rating} ({product.reviewCount})
+            <Star
+              size={15}
+              color={highContrast && darkMode ? '#FACC15' : '#D97706'}
+              fill={highContrast && darkMode ? '#FACC15' : '#F59E0B'}
+            />
+            <AccessibleText
+              size="xs"
+              weight="semiBold"
+              color={palette.textSecondary}
+              style={styles.ratingText}
+            >
+              {product.rating} ({product.reviewCount} avaliações)
             </AccessibleText>
           </View>
         )}
 
         <AccessibleText
           size="xs"
-          color={Colors.charcoalSlate}
+          color={palette.textSecondary}
           numberOfLines={1}
           style={styles.fabric}
         >
@@ -90,11 +130,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
         </AccessibleText>
 
         <View style={styles.priceRow}>
-          <AccessibleText size="lg" weight="bold" color={Colors.electricIris}>
+          <AccessibleText size="lg" weight="bold" color={palette.accent}>
             {product.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </AccessibleText>
           {!focusMode && product.originalPrice && (
-            <AccessibleText size="xs" color={Colors.charcoalSlate} style={styles.originalPrice}>
+            <AccessibleText size="xs" color={palette.textSecondary} style={styles.originalPrice}>
               {product.originalPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
             </AccessibleText>
           )}
@@ -117,10 +157,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 6,
-  },
-  cardHighContrast: {
-    borderWidth: 2,
-    borderColor: Colors.deepSpaceNavy,
   },
   imageContainer: {
     width: '100%',

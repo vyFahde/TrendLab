@@ -7,208 +7,529 @@ import {
   TouchableOpacity,
   FlatList,
   Alert,
+  Modal,
+  Platform,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { HomeStackParamList, Product } from '../../types';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AccessibleText } from '../../components/AccessibleText';
+import { AccessibilityBar } from '../../components/AccessibilityBar';
 import { ProductCard } from '../../components/ProductCard';
+import { CustomButton } from '../../components/CustomButton';
 import { mockProducts } from '../../data/mockProducts';
 import { useAccessibility } from '../../context/AccessibilityContext';
+import { useUsuarioStore } from '../../store/usuario-store';
+import { useToastStore } from '../../store/useToastStore';
 import Colors from '../../theme/colors';
-import { Search, Mic, Sparkles, Filter } from 'lucide-react-native';
+import {
+  Search,
+  Mic,
+  Sparkles,
+  SlidersHorizontal,
+  X,
+  ArrowRight,
+} from 'lucide-react-native';
 
 const categories = ['Todas', 'Calças', 'Camisetas', 'Casacos', 'Vestidos', 'Calçados'];
+const sizeFilters = ['Todos', 'P', 'M', 'G', 'GG', '38', '40', '42', '44'];
 
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
-  const { focusMode } = useAccessibility();
+  const { focusMode, highContrast, darkMode, palette } = useAccessibility();
+  const { userData, usuario } = useUsuarioStore();
+  const { showToast } = useToastStore();
 
   const [selectedCategory, setSelectedCategory] = useState('Todas');
+  const [selectedSizeFilter, setSelectedSizeFilter] = useState('Todos');
+  const [sortOrder, setSortOrder] = useState<'default' | 'asc' | 'desc'>('default');
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [voiceModalVisible, setVoiceModalVisible] = useState(false);
 
   const filteredProducts = useMemo(() => {
-    return mockProducts.filter((product) => {
+    const result = mockProducts.filter((product) => {
       const matchesCategory =
         selectedCategory === 'Todas' || product.category === selectedCategory;
+      const matchesSize =
+        selectedSizeFilter === 'Todos' ||
+        product.availableSizes.includes(selectedSizeFilter);
+      const query = searchQuery.toLowerCase().trim();
       const matchesSearch =
-        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.fabric.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesCategory && matchesSearch;
+        !query ||
+        product.name.toLowerCase().includes(query) ||
+        product.category.toLowerCase().includes(query) ||
+        product.fabric.toLowerCase().includes(query) ||
+        product.colors.some((c) => c.name.toLowerCase().includes(query));
+      return matchesCategory && matchesSize && matchesSearch;
     });
-  }, [selectedCategory, searchQuery]);
+
+    if (sortOrder === 'asc') {
+      return [...result].sort((a, b) => a.price - b.price);
+    }
+    if (sortOrder === 'desc') {
+      return [...result].sort((a, b) => b.price - a.price);
+    }
+    return result;
+  }, [selectedCategory, selectedSizeFilter, sortOrder, searchQuery]);
 
   const handleVoiceSearchSimulation = () => {
+    if (Platform.OS === 'web') {
+      setVoiceModalVisible(true);
+      return;
+    }
     Alert.alert(
-      '🎙️ Busca por Voz',
-      'Selecione um termo para buscar:',
+      '🎙️ Busca por Voz Acessível',
+      'Selecione um comando de voz simulado para filtrar o catálogo:',
       [
         {
-          text: '"Calça jeans"',
-          onPress: () => setSearchQuery('jeans'),
+          text: '"Calça jeans feminina"',
+          onPress: () => {
+            setSearchQuery('jeans');
+            showToast('Busca por voz: "Calça jeans"', 'info');
+          },
         },
         {
-          text: '"Camiseta"',
-          onPress: () => setSearchQuery('camiseta'),
+          text: '"Camiseta algodão"',
+          onPress: () => {
+            setSearchQuery('camiseta');
+            showToast('Busca por voz: "Camiseta"', 'info');
+          },
         },
         {
           text: 'Limpar busca',
           style: 'destructive',
-          onPress: () => setSearchQuery(''),
+          onPress: () => {
+            setSearchQuery('');
+            showToast('Busca limpa.', 'info');
+          },
         },
       ]
     );
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.header}>
-          <AccessibleText size="xs" weight="bold" color={Colors.electricIris} style={styles.brandTag}>
-            TRENDLAB • MODA ACESSÍVEL
-          </AccessibleText>
-          <AccessibleText size="2xl" weight="bold" color={Colors.highInkSlate}>
-            Catálogo Inclusivo
-          </AccessibleText>
-          <AccessibleText size="sm" color={Colors.charcoalSlate}>
-            Peças selecionadas com alto contraste, descrições táteis e tamanhos inteligentes.
-          </AccessibleText>
-        </View>
+  const handleClearAllFilters = () => {
+    setSelectedCategory('Todas');
+    setSelectedSizeFilter('Todos');
+    setSortOrder('default');
+    setSearchQuery('');
+    showToast('Todos os filtros foram restaurados.', 'info');
+  };
 
-        <View style={styles.searchRow}>
-          <View style={styles.searchInputWrapper}>
-            <Search size={20} color={Colors.charcoalSlate} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Buscar por peça, tecido ou cor..."
-              placeholderTextColor={Colors.charcoalSlate}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              accessibilityLabel="Campo de busca de produtos"
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearSearch}>
-                <AccessibleText size="sm" weight="bold" color={Colors.charcoalSlate}>
-                  ✕
-                </AccessibleText>
-              </TouchableOpacity>
-            )}
-          </View>
+  const hasActiveFilters =
+    selectedCategory !== 'Todas' ||
+    selectedSizeFilter !== 'Todos' ||
+    sortOrder !== 'default' ||
+    searchQuery.trim().length > 0;
 
-          <TouchableOpacity
-            style={styles.voiceButton}
-            onPress={handleVoiceSearchSimulation}
-            accessibilityLabel="Ativar busca por voz"
-            accessibilityRole="button"
-          >
-            <Mic size={22} color={Colors.white} />
-          </TouchableOpacity>
-        </View>
+  const displayName = userData?.name || usuario || 'Visitante';
 
-        {!focusMode && (
-          <View style={styles.bannerContainer}>
-            <View style={styles.bannerBadge}>
-              <Sparkles size={14} color={Colors.white} />
-              <AccessibleText size="xs" weight="bold" color={Colors.white}>
-                PROVADOR VIRTUAL ATIVO
+  const renderListHeader = () => (
+    <View>
+      <View style={styles.header}>
+        <AccessibleText size="xs" weight="bold" color={palette.accent} style={styles.brandTag}>
+          TRENDLAB • BEM-VINDO(A), {displayName.toUpperCase()}
+        </AccessibleText>
+        <AccessibleText size="2xl" weight="bold" color={palette.textPrimary}>
+          Catálogo Inclusivo
+        </AccessibleText>
+        <AccessibleText size="sm" color={palette.textSecondary}>
+          Peças selecionadas com alto contraste, descrições táteis e tamanhos inteligentes.
+        </AccessibleText>
+      </View>
+
+      {/* Barra de Busca + Comando de Voz + Botão de Filtros Avançados (Modal) */}
+      <View style={styles.searchRow}>
+        <View
+          style={[
+            styles.searchInputWrapper,
+            {
+              backgroundColor: palette.surface,
+              borderColor: highContrast ? palette.border : darkMode ? '#475569' : Colors.inputBorder,
+              borderWidth: highContrast ? 2.5 : 2,
+            },
+          ]}
+        >
+          <Search size={20} color={palette.iconPrimary} />
+          <TextInput
+            style={[styles.searchInput, { color: palette.textPrimary }]}
+            placeholder="Buscar peça, tecido ou cor..."
+            placeholderTextColor={palette.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            accessibilityLabel="Campo de busca de produtos"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setSearchQuery('')}
+              style={styles.clearSearch}
+              accessibilityRole="button"
+              accessibilityLabel="Limpar texto da busca"
+            >
+              <AccessibleText size="sm" weight="bold" color={palette.textPrimary}>
+                ✕
               </AccessibleText>
-            </View>
-            <AccessibleText size="base" weight="bold" color={Colors.deepSpaceNavy}>
-              Recomendação inteligente de caimento
-            </AccessibleText>
-            <AccessibleText size="xs" color={Colors.charcoalSlate} style={styles.bannerText}>
-              Evite trocas com nossa análise guiada de medidas e modelagens especiais.
-            </AccessibleText>
-          </View>
-        )}
-
-        <View style={styles.categoriesSection}>
-          <AccessibleText size="sm" weight="bold" color={Colors.deepSpaceNavy} style={styles.sectionTitle}>
-            Filtrar por Categoria:
-          </AccessibleText>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoryChipsList}
-          >
-            {categories.map((cat) => {
-              const isSelected = selectedCategory === cat;
-              return (
-                <TouchableOpacity
-                  key={cat}
-                  style={[
-                    styles.categoryChip,
-                    isSelected && styles.categoryChipSelected,
-                  ]}
-                  onPress={() => setSelectedCategory(cat)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Categoria ${cat}, ${isSelected ? 'selecionada' : 'não selecionada'}`}
-                >
-                  <AccessibleText
-                    size="sm"
-                    weight={isSelected ? 'bold' : 'medium'}
-                    color={isSelected ? Colors.white : Colors.highInkSlate}
-                  >
-                    {cat}
-                  </AccessibleText>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        <View style={styles.productsSection}>
-          <View style={styles.productsHeader}>
-            <AccessibleText size="base" weight="bold" color={Colors.deepSpaceNavy}>
-              Peças Disponíveis ({filteredProducts.length})
-            </AccessibleText>
-            {selectedCategory !== 'Todas' && (
-              <TouchableOpacity
-                onPress={() => setSelectedCategory('Todas')}
-                style={styles.clearFilterButton}
-                accessibilityRole="button"
-                accessibilityLabel="Limpar filtro de categoria e exibir todas"
-              >
-                <AccessibleText size="xs" weight="bold" color={Colors.warmCoral}>
-                  Limpar filtro
-                </AccessibleText>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {filteredProducts.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <AccessibleText size="base" weight="semiBold" color={Colors.charcoalSlate}>
-                Nenhum produto encontrado para sua busca.
-              </AccessibleText>
-              <TouchableOpacity
-                style={styles.resetButton}
-                onPress={() => {
-                  setSearchQuery('');
-                  setSelectedCategory('Todas');
-                }}
-              >
-                <AccessibleText size="sm" weight="bold" color={Colors.electricIris}>
-                  Restaurar Catálogo Completo
-                </AccessibleText>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            filteredProducts.map((item) => (
-              <ProductCard
-                key={item.id}
-                product={item}
-                onPress={() => navigation.navigate('ProductDetail', { product: item })}
-              />
-            ))
+            </TouchableOpacity>
           )}
         </View>
-      </ScrollView>
+
+        <TouchableOpacity
+          style={[
+            styles.voiceButton,
+            highContrast && {
+              backgroundColor: palette.accent,
+              borderWidth: 2,
+              borderColor: palette.border,
+            },
+          ]}
+          onPress={handleVoiceSearchSimulation}
+          accessibilityLabel="Ativar busca por voz"
+          accessibilityRole="button"
+        >
+          <Mic size={22} color={highContrast && darkMode ? '#000000' : Colors.white} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.filterButton,
+            (selectedSizeFilter !== 'Todos' || sortOrder !== 'default') &&
+              styles.filterButtonActive,
+            highContrast && {
+              borderWidth: 2,
+              borderColor: palette.border,
+            },
+          ]}
+          onPress={() => setFilterModalVisible(true)}
+          accessibilityLabel="Abrir modal de filtros por tamanho e preço"
+          accessibilityRole="button"
+        >
+          <SlidersHorizontal size={20} color={Colors.white} />
+        </TouchableOpacity>
+      </View>
+
+      {!focusMode && (
+        <TouchableOpacity
+          style={[
+            styles.bannerContainer,
+            {
+              backgroundColor: darkMode ? palette.surface : '#EEF2FF',
+              borderColor: highContrast ? palette.border : darkMode ? '#475569' : '#C7D2FE',
+              borderWidth: highContrast ? 2.5 : 1.5,
+            },
+          ]}
+          activeOpacity={0.85}
+          onPress={() => (navigation as any).navigate('FittingRoomTab')}
+          accessibilityRole="button"
+          accessibilityLabel="Ir para o Provador Virtual Inteligente"
+        >
+          <View style={styles.bannerTopRow}>
+            <View
+              style={[
+                styles.bannerBadge,
+                highContrast && {
+                  backgroundColor: palette.accent,
+                },
+              ]}
+            >
+              <Sparkles
+                size={14}
+                color={highContrast ? palette.accentContrastText : Colors.white}
+              />
+              <AccessibleText
+                size="xs"
+                weight="bold"
+                color={highContrast ? palette.accentContrastText : Colors.white}
+              >
+                PROVADOR VIRTUAL INTERATIVO
+              </AccessibleText>
+            </View>
+            <ArrowRight size={18} color={palette.iconPrimary} />
+          </View>
+          <AccessibleText size="base" weight="bold" color={palette.heading}>
+            Recomendação inteligente de caimento + Câmera
+          </AccessibleText>
+          <AccessibleText size="xs" color={palette.textSecondary} style={styles.bannerText}>
+            Toque aqui para calcular seu tamanho ideal ou testar cores com sua câmera.
+          </AccessibleText>
+        </TouchableOpacity>
+      )}
+
+      {/* Filtro Horizontal por Categoria */}
+      <View style={styles.categoriesSection}>
+        <AccessibleText size="sm" weight="bold" color={palette.heading} style={styles.sectionTitle}>
+          Filtrar por Categoria:
+        </AccessibleText>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoryChipsList}
+        >
+          {categories.map((cat) => {
+            const isSelected = selectedCategory === cat;
+            return (
+              <TouchableOpacity
+                key={cat}
+                style={[
+                  styles.categoryChip,
+                  {
+                    backgroundColor: isSelected ? palette.accent : palette.surface,
+                    borderColor: isSelected ? palette.accent : palette.border,
+                    borderWidth: highContrast ? 2.5 : 1.5,
+                  },
+                ]}
+                onPress={() => setSelectedCategory(cat)}
+                accessibilityRole="button"
+                accessibilityLabel={`Categoria ${cat}, ${
+                  isSelected ? 'selecionada' : 'não selecionada'
+                }`}
+              >
+                <AccessibleText
+                  size="sm"
+                  weight={isSelected ? 'bold' : 'medium'}
+                  color={isSelected ? palette.accentContrastText : palette.textPrimary}
+                >
+                  {cat}
+                </AccessibleText>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      {/* Cabeçalho da Lista FlatList */}
+      <View style={styles.productsHeader}>
+        <View>
+          <AccessibleText size="base" weight="bold" color={palette.heading}>
+            Peças Disponíveis ({filteredProducts.length})
+          </AccessibleText>
+          {selectedSizeFilter !== 'Todos' && (
+            <AccessibleText size="xs" weight="semiBold" color={palette.accent}>
+              Filtro ativo: Tamanho {selectedSizeFilter}
+            </AccessibleText>
+          )}
+        </View>
+        {hasActiveFilters && (
+          <TouchableOpacity
+            onPress={handleClearAllFilters}
+            style={styles.clearFilterButton}
+            accessibilityRole="button"
+            accessibilityLabel="Limpar todos os filtros ativos"
+          >
+            <AccessibleText size="xs" weight="bold" color={palette.coral}>
+              Limpar filtros
+            </AccessibleText>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyContainer}>
+      <AccessibleText size="base" weight="semiBold" color={palette.textSecondary}>
+        Nenhum produto encontrado para sua busca.
+      </AccessibleText>
+      <TouchableOpacity
+        style={styles.resetButton}
+        onPress={handleClearAllFilters}
+        accessibilityRole="button"
+      >
+        <AccessibleText size="sm" weight="bold" color={palette.accent}>
+          Restaurar Catálogo Completo
+        </AccessibleText>
+      </TouchableOpacity>
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]}>
+      <AccessibilityBar />
+
+      {/* Listagem Otimizada com FlatList (Lazy Loading - Slide PM-10) */}
+      <FlatList
+        data={filteredProducts}
+        keyExtractor={(item: Product) => item.id}
+        renderItem={({ item }) => (
+          <ProductCard
+            product={item}
+            onPress={() => navigation.navigate('ProductDetail', { product: item })}
+          />
+        )}
+        ListHeaderComponent={renderListHeader()}
+        ListEmptyComponent={renderEmptyState()}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        initialNumToRender={4}
+      />
+
+      {/* Modal de Filtros por Tamanho e Ordenação (Slide PM-11) */}
+      <Modal
+        visible={filterModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setFilterModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.modalSheet,
+              {
+                backgroundColor: palette.surface,
+                borderColor: palette.border,
+                borderTopWidth: highContrast ? 2.5 : 0,
+              },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <AccessibleText size="lg" weight="bold" color={palette.heading}>
+                Filtros Rápidos Acessíveis
+              </AccessibleText>
+              <TouchableOpacity
+                onPress={() => setFilterModalVisible(false)}
+                style={styles.closeModalBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Fechar janela de filtros"
+              >
+                <X size={22} color={palette.iconPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <AccessibleText size="sm" weight="bold" color={palette.heading} style={styles.modalSectionTitle}>
+              Filtrar por Tamanho:
+            </AccessibleText>
+            <View style={styles.modalChipsWrap}>
+              {sizeFilters.map((sz) => {
+                const active = selectedSizeFilter === sz;
+                return (
+                  <TouchableOpacity
+                    key={sz}
+                    style={[
+                      styles.sizeChip,
+                      {
+                        backgroundColor: active ? palette.accent : palette.surfaceSecondary,
+                        borderColor: active ? palette.accent : palette.border,
+                      },
+                    ]}
+                    onPress={() => setSelectedSizeFilter(sz)}
+                    accessibilityRole="button"
+                  >
+                    <AccessibleText
+                      size="sm"
+                      weight="bold"
+                      color={active ? palette.accentContrastText : palette.textPrimary}
+                    >
+                      {sz}
+                    </AccessibleText>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <AccessibleText size="sm" weight="bold" color={palette.heading} style={styles.modalSectionTitle}>
+              Ordenar por Preço:
+            </AccessibleText>
+            <View style={styles.sortRow}>
+              {[
+                { key: 'default', label: 'Relevância' },
+                { key: 'asc', label: 'Menor Preço' },
+                { key: 'desc', label: 'Maior Preço' },
+              ].map((opt) => {
+                const active = sortOrder === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[
+                      styles.sortChip,
+                      {
+                        backgroundColor: active ? palette.accent : palette.surfaceSecondary,
+                        borderColor: active ? palette.accent : palette.border,
+                      },
+                    ]}
+                    onPress={() => setSortOrder(opt.key as 'default' | 'asc' | 'desc')}
+                    accessibilityRole="button"
+                  >
+                    <AccessibleText
+                      size="xs"
+                      weight="bold"
+                      color={active ? palette.accentContrastText : palette.textPrimary}
+                    >
+                      {opt.label}
+                    </AccessibleText>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={styles.modalActions}>
+              <CustomButton
+                title="Aplicar Filtros"
+                onPress={() => {
+                  setFilterModalVisible(false);
+                  showToast('Filtros aplicados ao catálogo!', 'success');
+                }}
+                variant="primary"
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Busca por Voz (Compatível com Web e Mobile) */}
+      <Modal
+        visible={voiceModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setVoiceModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { backgroundColor: palette.surface }]}>
+            <View style={styles.modalHeader}>
+              <AccessibleText size="lg" weight="bold" color={palette.heading}>
+                🎙️ Busca por Voz Acessível
+              </AccessibleText>
+              <TouchableOpacity
+                onPress={() => setVoiceModalVisible(false)}
+                style={styles.closeModalBtn}
+                accessibilityRole="button"
+              >
+                <X size={22} color={palette.iconPrimary} />
+              </TouchableOpacity>
+            </View>
+            <AccessibleText size="sm" color={palette.textSecondary} style={styles.voiceModalDesc}>
+              Toque em uma das frases reconhecidas para filtrar o catálogo:
+            </AccessibleText>
+            <View style={styles.voiceCommandsList}>
+              {[
+                { label: '🗣️ "Calça jeans feminina"', term: 'jeans' },
+                { label: '🗣️ "Camiseta algodão"', term: 'camiseta' },
+                { label: '🗣️ "Tênis sem cadarço"', term: 'tênis' },
+              ].map((cmd) => (
+                <TouchableOpacity
+                  key={cmd.term}
+                  style={[
+                    styles.voiceCommandBtn,
+                    {
+                      backgroundColor: palette.surfaceSecondary,
+                      borderColor: palette.border,
+                    },
+                  ]}
+                  onPress={() => {
+                    setSearchQuery(cmd.term);
+                    setVoiceModalVisible(false);
+                    showToast(`Busca por voz: "${cmd.term}"`, 'info');
+                  }}
+                >
+                  <AccessibleText size="sm" weight="bold" color={palette.accent}>
+                    {cmd.label}
+                  </AccessibleText>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -221,18 +542,19 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingVertical: 14,
+    paddingBottom: 32,
   },
   header: {
     marginBottom: 14,
   },
   brandTag: {
-    letterSpacing: 1,
+    letterSpacing: 0.8,
     marginBottom: 2,
   },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     marginBottom: 14,
   },
   searchInputWrapper: {
@@ -260,11 +582,22 @@ const styles = StyleSheet.create({
   },
   voiceButton: {
     backgroundColor: Colors.electricIris,
-    minWidth: 52,
+    minWidth: 50,
     minHeight: 52,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  filterButton: {
+    backgroundColor: Colors.deepSpaceNavy,
+    minWidth: 50,
+    minHeight: 52,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  filterButtonActive: {
+    backgroundColor: Colors.warmCoral,
   },
   bannerContainer: {
     backgroundColor: '#EEF2FF',
@@ -273,6 +606,12 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 14,
     marginBottom: 14,
+  },
+  bannerTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
   },
   bannerBadge: {
     flexDirection: 'row',
@@ -283,7 +622,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
-    marginBottom: 6,
   },
   bannerText: {
     marginTop: 4,
@@ -307,13 +645,6 @@ const styles = StyleSheet.create({
     borderColor: Colors.cardBorder,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  categoryChipSelected: {
-    backgroundColor: Colors.deepSpaceNavy,
-    borderColor: Colors.deepSpaceNavy,
-  },
-  productsSection: {
-    marginTop: 6,
   },
   productsHeader: {
     flexDirection: 'row',
@@ -339,5 +670,84 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 12,
     paddingHorizontal: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: 32,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  closeModalBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalSectionTitle: {
+    marginBottom: 10,
+    marginTop: 6,
+  },
+  modalChipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  sizeChip: {
+    minWidth: 48,
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: Colors.cardBorder,
+    backgroundColor: Colors.cleanCanvas,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sortRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 20,
+  },
+  sortChip: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: Colors.cardBorder,
+    backgroundColor: Colors.cleanCanvas,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  modalActions: {
+    marginTop: 4,
+  },
+  voiceModalDesc: {
+    marginBottom: 12,
+  },
+  voiceCommandsList: {
+    gap: 10,
+  },
+  voiceCommandBtn: {
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1.5,
+    borderColor: '#C7D2FE',
+    borderRadius: 12,
+    padding: 14,
+    minHeight: 48,
+    justifyContent: 'center',
   },
 });

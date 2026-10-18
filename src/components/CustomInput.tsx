@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { AccessibleText } from './AccessibleText';
+import { useAccessibility } from '../context/AccessibilityContext';
 import Colors from '../theme/colors';
 import { AlertTriangle, CheckCircle2, Eye, EyeOff } from 'lucide-react-native';
 
@@ -33,24 +34,26 @@ export const CustomInput: React.FC<CustomInputProps> = ({
 }) => {
   const [isFocused, setIsFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const { highContrast, darkMode, palette } = useAccessibility();
 
   const hasError = Boolean(errorMessage);
 
   const getBorderColor = () => {
-    if (hasError) return Colors.alertCrimson;
-    if (isValid && value && value.length > 0) return Colors.successEmerald;
-    if (isFocused) return Colors.electricIris;
-    return Colors.inputBorder;
+    if (hasError) return palette.danger;
+    if (isValid && value && value.length > 0) return palette.success;
+    if (isFocused) return palette.accent;
+    if (highContrast) return palette.border;
+    return darkMode ? '#64748B' : Colors.inputBorder;
   };
 
   return (
     <View style={styles.wrapper}>
       <View style={styles.labelRow}>
-        <AccessibleText size="sm" weight="semiBold" color={Colors.highInkSlate}>
+        <AccessibleText size="sm" weight="semiBold" color={palette.textPrimary}>
           {label}
         </AccessibleText>
         {required && (
-          <AccessibleText size="sm" weight="bold" color={Colors.alertCrimson}>
+          <AccessibleText size="sm" weight="bold" color={palette.danger}>
             {' *'}
           </AccessibleText>
         )}
@@ -59,13 +62,17 @@ export const CustomInput: React.FC<CustomInputProps> = ({
       <View
         style={[
           styles.inputContainer,
-          { borderColor: getBorderColor() },
-          hasError && styles.errorContainer,
+          {
+            backgroundColor: darkMode ? palette.surfaceSecondary : Colors.white,
+            borderColor: getBorderColor(),
+            borderWidth: highContrast ? 2.5 : 2,
+          },
+          hasError && { backgroundColor: palette.dangerBg },
         ]}
       >
         <TextInput
-          style={styles.textInput}
-          placeholderTextColor={Colors.charcoalSlate}
+          style={[styles.textInput, { color: palette.textPrimary }]}
+          placeholderTextColor={palette.textSecondary}
           secureTextEntry={isPassword && !showPassword}
           value={value}
           onFocus={(e) => {
@@ -83,13 +90,13 @@ export const CustomInput: React.FC<CustomInputProps> = ({
 
         {isValid && !hasError && value && value.length > 0 && (
           <View style={styles.statusIcon}>
-            <CheckCircle2 size={20} color={Colors.successEmerald} />
+            <CheckCircle2 size={20} color={palette.success} />
           </View>
         )}
 
         {hasError && (
           <View style={styles.statusIcon}>
-            <AlertTriangle size={20} color={Colors.alertCrimson} />
+            <AlertTriangle size={20} color={palette.danger} />
           </View>
         )}
 
@@ -101,9 +108,9 @@ export const CustomInput: React.FC<CustomInputProps> = ({
             accessibilityRole="button"
           >
             {showPassword ? (
-              <EyeOff size={20} color={Colors.charcoalSlate} />
+              <EyeOff size={20} color={palette.iconPrimary} />
             ) : (
-              <Eye size={20} color={Colors.charcoalSlate} />
+              <Eye size={20} color={palette.iconPrimary} />
             )}
           </TouchableOpacity>
         )}
@@ -111,7 +118,7 @@ export const CustomInput: React.FC<CustomInputProps> = ({
 
       {hasError && (
         <View style={styles.messageRow}>
-          <AccessibleText size="xs" weight="semiBold" color={Colors.alertCrimson}>
+          <AccessibleText size="xs" weight="semiBold" color={palette.danger}>
             ⚠️ {errorMessage}
           </AccessibleText>
         </View>
@@ -119,7 +126,7 @@ export const CustomInput: React.FC<CustomInputProps> = ({
 
       {!hasError && helperText && (
         <View style={styles.messageRow}>
-          <AccessibleText size="xs" color={Colors.charcoalSlate}>
+          <AccessibleText size="xs" color={palette.textSecondary}>
             {helperText}
           </AccessibleText>
         </View>
@@ -146,9 +153,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 14,
     minHeight: 52,
-  },
-  errorContainer: {
-    backgroundColor: '#FEF2F2',
   },
   textInput: {
     flex: 1,

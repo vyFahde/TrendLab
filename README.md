@@ -7,9 +7,9 @@
 
 ## 📖 1. Sobre a Aplicação
 O **TrendLab** é uma plataforma mobile de e-commerce de moda desenvolvida com foco em **Acessibilidade Digital (WCAG AAA)** e **Calm UI**. O projeto foi desenhado para eliminar barreiras de acesso e proporcionar autonomia para usuários com diferentes necessidades:
-- **Baixa Visão, Miopia Severa e Astigmatismo:** Interface com tipografia de alto contraste, ampliação dinâmica de fontes e modo de super zoom para análise de tecidos.
+- **Baixa Visão, Miopia Severa e Astigmatismo:** Interface com tipografia de alto contraste, ampliação dinâmica de fontes, sintetizador de voz nativo (`expo-speech`) e modo de super zoom para análise de tecidos.
 - **TDAH e Dislexia:** Navegação objetiva em tópicos curtos (bullet points), ausência de anúncios distrativos e **Modo Foco** para redução de sobrecarga sensorial.
-- **Daltonismo e Baixa Literacia Digital:** Identificação nominal explícita de cores, botões com alvos táteis ampliados e feedbacks com ícones universais associados a cores.
+- **Daltonismo e Baixa Literacia Digital:** Identificação nominal explícita de cores, botões com alvos táteis ampliados (mínimo 44x44px / 52px) e feedbacks com ícones universais associados a cores.
 
 ---
 
@@ -28,27 +28,50 @@ O **TrendLab** é uma plataforma mobile de e-commerce de moda desenvolvida com f
 
 ---
 
-## 📱 3. Estrutura e Telas do Aplicativo
+## 📱 3. Estrutura, Telas e Recursos Nativos Implementados
+
+### Barra Superior de Acessibilidade (`src/components/AccessibilityBar.tsx`)
+Presente em todas as telas do aplicativo, oferecendo:
+- **Escala de Fonte em Tempo Real (`A-` / `A+`)**
+- **Modo Foco (Calm UI)** e **Alto Contraste AAA**
+- **Leitor de Áudio Nativo (`expo-speech`):** Síntese de voz em português (`pt-BR`) com leitura do resumo de acessibilidade e tamanho recomendado.
+- **Identificação de Rede / Wi-Fi (`expo-network`):** Indicador em tempo real do estado de conexão (`Wi-Fi`, `Online` ou `Offline`) e endereço IP do dispositivo.
 
 ### Fluxo de Autenticação
-- **Login (`src/screens/Auth/LoginScreen.tsx`):** Acesso à plataforma com validação completa de e-mail (expressão regular) e senha mínima, além de atalhos rápidos de teste de personas.
-- **Cadastro (`src/screens/Auth/RegisterScreen.tsx`):** Criação de conta com validação simultânea de nome completo, e-mail, senha e conferência de repetição de senha.
+- **Login (`src/screens/Auth/LoginScreen.tsx`):** Validação com Formik + Yup e sincronização global de sessão com **Zustand** (`useUsuarioStore`).
+- **Cadastro (`src/screens/Auth/RegisterScreen.tsx`):** Criação de conta com validação simultânea de nome completo, e-mail, senha e confirmação de senha.
 
-### Catálogo e Descoberta
-- **Catálogo Inicial (`src/screens/Home/HomeScreen.tsx`):** Feed visual com filtro por categorias, busca instantânea e atalho de busca por voz acessível.
+### Catálogo e Descoberta (Listagem Otimizada com `FlatList`)
+- **Catálogo Inicial (`src/screens/Home/HomeScreen.tsx`):**
+  - **Listagem Otimizada (`FlatList` - PM-10):** Carregamento preguiçoso (*Lazy Loading*) de cards de produtos com `ListHeaderComponent` e `ListEmptyComponent`.
+  - **Modal de Filtros Rápidos e Busca por Voz (PM-11):** Filtro por categoria, tamanho e ordenação de preço com notificações `Toast` (`ToastAndroid` + `AccessibleToast`).
 
-### Detalhes e Provador Virtual
-- **Detalhes da Peça (`src/screens/ProductDetail/ProductDetailScreen.tsx`):** 
-  - **Super Zoom:** Permite ampliar a imagem da peça para analisar a textura do tecido e costuras.
-  - **Provador Virtual:** Recomendador de tamanho baseado em perfis anatômicos.
-  - **Ficha em Tópicos:** Bullet points claros para rápida compreensão sem cansaço visual.
-  - **Áudio Descrição:** Leitura do resumo da peça via sintetizador acessível.
+### Provador Virtual Interativo & Câmera Nativa
+- **Provador Virtual (`src/screens/FittingRoom/FittingRoomScreen.tsx`):**
+  - **Calculadora Anatômica:** Calcula automaticamente o tamanho ideal em letras (`P` a `XG`) e numérico (`38` a `46`) com base em altura, peso e preferência sensorial de caimento.
+  - **Espelho Virtual com Câmera e Galeria (`expo-image-picker` - PM-12):** Captura foto pela câmera nativa (`launchCameraAsync`) ou seleciona da galeria (`launchImageLibraryAsync`) em Base64/URI.
+  - **Recomendação Falada (`expo-speech`):** Leitura em voz alta do tamanho ideal sugerido.
+  - **Catálogo Compatível (`FlatList`):** Lista peças disponíveis no tamanho calculado do usuário.
 
-### Sacola e Compra
-- **Sacola & Checkout (`src/screens/Cart/CartScreen.tsx`):** Gerenciamento de itens, ajuste de quantidades e fluxo de finalização com validação de dados de destinatário, CEP e endereço.
+### Detalhes da Peça
+- **Detalhes do Produto (`src/screens/ProductDetail/ProductDetailScreen.tsx`):**
+  - **Super Zoom:** Ampliação da peça para inspeção de textura e acabamento da costura.
+  - **Audiodescrição Completa (`expo-speech`):** Leitura em voz alta do nome, preço, tecido, cores e tópicos da peça.
+  - **Integração com Provador Virtual:** Destaca com estrela (`★`) o tamanho calculado no perfil do usuário.
 
-### Ajustes do Sistema
-- **Configurações (`src/screens/Profile/ProfileScreen.tsx`):** Painel de controle de acessibilidade com ajuste de escala de fonte em tempo real, alternador de Modo Foco e Alto Contraste AAA.
+### Sacola, Compra Expressa e Localização GPS
+- **Sacola & Checkout (`src/screens/Cart/CartScreen.tsx`):**
+  - **Confirmação com `Alert` e `Toast` (PM-11):** Confirmação segura antes de remover itens e aviso instantâneo via Toast.
+  - **Localização e Endereço via GPS (`expo-location`):** Botão *"Usar Minha Localização Atual (GPS)"* que obtém coordenadas (`getCurrentPositionAsync`) e geocodificação reversa (`reverseGeocodeAsync`) para preencher CEP e endereço sem digitação.
+  - **Modal de Compra Expressa (PM-11):** Opção de compra em 1-clique com seleção direta entre **Pix**, **Cartão** e **Boleto**.
+- **Pedido Confirmado (`src/screens/Cart/OrderSuccessScreen.tsx`):** Confirmação visual e sonora (`expo-speech`) do pedido registrado.
+
+### Minha Conta & Configurações
+- **Minha Conta (`src/screens/Profile/ProfileScreen.tsx`):**
+  - **Foto de Perfil com Câmera / Galeria (`expo-image-picker` - PM-12):** Atualização de foto do usuário persistida globalmente.
+  - **Diagnóstico de Conectividade (`expo-network`):** Exibe tipo de rede ativa (`Wi-Fi` / `Dados Móveis`) e IP local.
+  - **Histórico de Pedidos (Zustand):** Lista de pedidos concluídos com modal de recibo detalhado.
+  - **Painel de Acessibilidade:** Controles completos de escala tipográfica, Modo Foco e Alto Contraste.
 
 ---
 
@@ -56,15 +79,16 @@ O **TrendLab** é uma plataforma mobile de e-commerce de moda desenvolvida com f
 
 ```
 TrendLab/
-├── App.tsx                     # Ponto de entrada com Providers
-├── app.json                    # Configurações do Expo
+├── App.tsx                     # Ponto de entrada com Providers e AccessibleToast
+├── app.json                    # Configurações e plugins nativos do Expo
 ├── eas.json                    # Canais de deploy do EAS
 └── src/
-    ├── components/             # Componentes modulares e reutilizáveis (CustomButton, CustomInput...)
+    ├── components/             # Componentes modulares (AccessibilityBar, AccessibleToast, ProductCard...)
     ├── context/                # Context API (Acessibilidade, Autenticação e Sacola)
     ├── data/                   # Base de dados de produtos inclusivos
-    ├── navigation/             # Navegação Stack e Bottom Tabs
-    ├── screens/                # Telas da aplicação
+    ├── navigation/             # Navegação híbrida: Native Stack + Bottom Tabs (4 abas)
+    ├── screens/                # 8 Telas completas da aplicação
+    ├── store/                  # Gerenciamento de Estado Global com Zustand (usuario-store, useToastStore)
     ├── theme/                  # Tokens de cores (colors.ts) e espaçamento/raios (spacing.ts)
     └── types/                  # Tipagem estrita com TypeScript
 ```

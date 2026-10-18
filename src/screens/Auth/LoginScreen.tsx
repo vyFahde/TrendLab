@@ -6,11 +6,15 @@ import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { RootStackParamList } from '../../types';
 import { AccessibleText } from '../../components/AccessibleText';
+import { AccessibilityBar } from '../../components/AccessibilityBar';
 import { CustomInput } from '../../components/CustomInput';
 import { CustomButton } from '../../components/CustomButton';
 import { useAuth } from '../../context/AuthContext';
+import { useAccessibility } from '../../context/AccessibilityContext';
+import { useUsuarioStore } from '../../store/usuario-store';
+import { useToastStore } from '../../store/useToastStore';
 import Colors from '../../theme/colors';
-import { ShieldCheck, ArrowRight, AlertTriangle } from 'lucide-react-native';
+import { ArrowRight, AlertTriangle } from 'lucide-react-native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
@@ -28,26 +32,21 @@ const loginValidationSchema = Yup.object().shape({
     .required('A senha é obrigatória.'),
 });
 
-const DismissKeyboard: React.FC<{ children: React.ReactElement }> = ({ children }) => {
-  if (Platform.OS === 'web') {
-    return children;
-  }
-  return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      {children}
-    </TouchableWithoutFeedback>
-  );
-};
-
 export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const { loginUser } = useAuth();
+  const { palette, highContrast } = useAccessibility();
+  const { setUsuario } = useUsuarioStore();
+  const { showToast } = useToastStore();
   const [loginError, setLoginError] = useState<string | null>(null);
 
   const handleLoginSubmit = async (values: LoginFormValues) => {
     setLoginError(null);
     try {
-      const success = await loginUser(values.email.trim(), values.senha);
+      const cleanEmail = values.email.trim();
+      const success = await loginUser(cleanEmail, values.senha);
       if (success) {
+        setUsuario(cleanEmail);
+        showToast('Login realizado com sucesso!', 'success');
         navigation.replace('MainTabs');
       } else {
         const errorMsg =
@@ -67,21 +66,32 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}>
+      <AccessibilityBar />
       <KeyboardAvoidingView
-        style={styles.container}
+        style={[styles.container, { backgroundColor: palette.background }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
         >
-          <DismissKeyboard>
-            <View>
+          <View>
           <View style={styles.brandSection}>
-            <View style={styles.logoBadge}>
-              <AccessibleText size="xl" weight="bold" color={Colors.white}>
+            <View
+              style={[
+                styles.logoBadge,
+                {
+                  backgroundColor: highContrast ? palette.primary : Colors.deepSpaceNavy,
+                  borderColor: palette.primary,
+                },
+              ]}
+            >
+              <AccessibleText
+                size="xl"
+                weight="bold"
+                color={highContrast ? palette.primaryContent : Colors.white}
+              >
                 TL
               </AccessibleText>
             </View>
@@ -97,7 +107,16 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
             </AccessibleText>
           </View>
 
-          <View style={styles.formCard}>
+          <View
+            style={[
+              styles.formCard,
+              {
+                backgroundColor: palette.surface,
+                borderColor: palette.border,
+                borderWidth: highContrast ? 2 : 1,
+              },
+            ]}
+          >
             <AccessibleText
               size="xl"
               weight="bold"
@@ -166,7 +185,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
                       accessibilityRole="alert"
                       accessibilityLiveRegion="assertive"
                     >
-                      <AlertTriangle size={20} color={Colors.alertCrimson} />
+                      <AlertTriangle size={20} color={palette.danger} />
                       <AccessibleText
                         size="xs"
                         weight="semiBold"
@@ -183,7 +202,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
                     onPress={() => handleSubmit()}
                     loading={isSubmitting}
                     variant="primary"
-                    icon={<ArrowRight size={20} color={Colors.white} />}
+                    icon={<ArrowRight size={20} color={palette.primaryContent} />}
                     style={styles.submitButton}
                     accessibilityHint="Entra na loja"
                   />
@@ -213,7 +232,6 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
             </View>
           </View>
           </View>
-          </DismissKeyboard>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

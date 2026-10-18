@@ -1,14 +1,18 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getThemePalette, ThemePalette } from '../theme/colors';
 
 interface AccessibilityContextData {
   fontScale: number;
   focusMode: boolean;
   highContrast: boolean;
+  darkMode: boolean;
+  palette: ThemePalette;
   increaseFont: () => void;
   decreaseFont: () => void;
   toggleFocusMode: () => void;
   toggleHighContrast: () => void;
+  toggleDarkMode: () => void;
   resetAccessibility: () => void;
 }
 
@@ -18,18 +22,23 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
   const [fontScale, setFontScale] = useState<number>(1.0);
   const [focusMode, setFocusMode] = useState<boolean>(false);
   const [highContrast, setHighContrast] = useState<boolean>(false);
+  const [darkMode, setDarkMode] = useState<boolean>(false);
 
   // Carregar preferências salvas do AsyncStorage
   useEffect(() => {
     const loadPreferences = async () => {
       try {
-        const savedFont = await AsyncStorage.getItem('@trendlab:fontScale');
-        const savedFocus = await AsyncStorage.getItem('@trendlab:focusMode');
-        const savedContrast = await AsyncStorage.getItem('@trendlab:highContrast');
+        const [savedFont, savedFocus, savedContrast, savedDark] = await Promise.all([
+          AsyncStorage.getItem('@trendlab:fontScale'),
+          AsyncStorage.getItem('@trendlab:focusMode'),
+          AsyncStorage.getItem('@trendlab:highContrast'),
+          AsyncStorage.getItem('@trendlab:darkMode'),
+        ]);
 
         if (savedFont) setFontScale(parseFloat(savedFont));
         if (savedFocus) setFocusMode(savedFocus === 'true');
         if (savedContrast) setHighContrast(savedContrast === 'true');
+        if (savedDark) setDarkMode(savedDark === 'true');
       } catch (error) {
         console.warn('Erro ao carregar preferências de acessibilidade', error);
       }
@@ -69,16 +78,31 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   };
 
+  const toggleDarkMode = async () => {
+    setDarkMode((prev) => {
+      const next = !prev;
+      AsyncStorage.setItem('@trendlab:darkMode', next.toString());
+      return next;
+    });
+  };
+
   const resetAccessibility = async () => {
     setFontScale(1.0);
     setFocusMode(false);
     setHighContrast(false);
+    setDarkMode(false);
     await AsyncStorage.multiRemove([
       '@trendlab:fontScale',
       '@trendlab:focusMode',
       '@trendlab:highContrast',
+      '@trendlab:darkMode',
     ]);
   };
+
+  const palette = useMemo(
+    () => getThemePalette(darkMode, highContrast),
+    [darkMode, highContrast]
+  );
 
   return (
     <AccessibilityContext.Provider
@@ -86,10 +110,13 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
         fontScale,
         focusMode,
         highContrast,
+        darkMode,
+        palette,
         increaseFont,
         decreaseFont,
         toggleFocusMode,
         toggleHighContrast,
+        toggleDarkMode,
         resetAccessibility,
       }}
     >

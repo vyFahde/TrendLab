@@ -22,6 +22,27 @@ export interface CartItem {
   quantity: number;
 }
 
+export interface FitProfile {
+  heightCm: string;
+  weightKg: string;
+  fitPreference: 'justo' | 'regular' | 'solto';
+  recommendedLetterSize: string;
+  recommendedNumericSize: string;
+  photoUri?: string | null;
+}
+
+export interface OrderRecord {
+  id: string;
+  date: string;
+  total: number;
+  paymentMethod: 'pix' | 'card' | 'boleto';
+  address: string;
+  zipCode: string;
+  receiverName: string;
+  itemsCount: number;
+  itemsSummary: string[];
+}
+
 // Stack interno da aba Início (mantém a Bottom Tab visível ao abrir os Detalhes)
 export type HomeStackParamList = {
   HomeScreen: undefined;
@@ -40,6 +61,7 @@ export type RootStackParamList = {
 // Rotas das Abas Inferiores
 export type TabParamList = {
   HomeTab: undefined;
+  FittingRoomTab: undefined;
   CartTab: undefined;
   ProfileTab: undefined;
 };

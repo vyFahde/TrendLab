@@ -20,6 +20,22 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O TrendLab precisa acessar sua galeria para definir sua foto de perfil ou usar o Provador Virtual.",
+          "cameraPermission": "O TrendLab precisa acessar sua câmera para capturar fotos no Provador Virtual e no seu perfil."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "O TrendLab utiliza sua localização para preencher automaticamente seu endereço de entrega no checkout.",
+          "locationWhenInUsePermission": "O TrendLab utiliza sua localização para preencher automaticamente seu endereço de entrega no checkout."
+        }
+      ]
+    ]
   }
 }

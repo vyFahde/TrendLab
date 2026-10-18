@@ -5,15 +5,21 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
+  GestureResponderEvent,
+  LayoutChangeEvent,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
-import { HomeStackParamList, RootStackParamList } from '../../types';
+import * as Speech from 'expo-speech';
+import { HomeStackParamList } from '../../types';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AccessibleText } from '../../components/AccessibleText';
+import { AccessibilityBar } from '../../components/AccessibilityBar';
 import { CustomButton } from '../../components/CustomButton';
 import { useCart } from '../../context/CartContext';
 import { useAccessibility } from '../../context/AccessibilityContext';
+import { useUsuarioStore } from '../../store/usuario-store';
+import { useToastStore } from '../../store/useToastStore';
 import Colors from '../../theme/colors';
 import {
   ArrowLeft,
@@ -23,34 +29,134 @@ import {
   ShoppingBag,
   Zap,
   Info,
+  Volume2,
+  VolumeX,
+  Move,
 } from 'lucide-react-native';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'ProductDetail'>;
+
+const LENS_SIZE = 148;
+const ZOOM_SCALE = 2.6;
 
 export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { product } = route.params;
   const rootNavigation = useNavigation<any>();
   const { addToCart } = useCart();
-  const { focusMode } = useAccessibility();
+  const { focusMode, highContrast, darkMode, palette } = useAccessibility();
+  const { fitProfile } = useUsuarioStore();
+  const { showToast } = useToastStore();
 
-  const [selectedSize, setSelectedSize] = useState<string>(product.recommendedSize);
+  // Calcula o tamanho ideal dinâmico de acordo com o Provador Virtual (Zustand)
+  const isNumericCategory = product.category === 'Calças' || product.category === 'Calçados';
+  const candidateIdealSize = isNumericCategory
+    ? fitProfile.recommendedNumericSize
+    : fitProfile.recommendedLetterSize;
+  const effectiveIdealSize = product.availableSizes.includes(candidateIdealSize)
+    ? candidateIdealSize
+    : product.recommendedSize;
+
+  const [selectedSize, setSelectedSize] = useState<string>(effectiveIdealSize);
   const [selectedColor, setSelectedColor] = useState<string>(product.colors[0].name);
   const [isSuperZoom, setIsSuperZoom] = useState<boolean>(false);
+  const [isDraggingLens, setIsDraggingLens] = useState<boolean>(false);
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({
+    width: 360,
+    height: 320,
+  });
+  const [lensPos, setLensPos] = useState<{ x: number; y: number }>({ x: 180, y: 160 });
+
   const [addedFeedback, setAddedFeedback] = useState<boolean>(false);
   const [imageError, setImageError] = useState<boolean>(false);
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setSelectedSize(effectiveIdealSize);
+  }, [effectiveIdealSize]);
 
   useEffect(() => {
     return () => {
       if (feedbackTimeoutRef.current) {
         clearTimeout(feedbackTimeoutRef.current);
       }
+      Speech.stop().catch(() => {});
     };
   }, []);
+
+  const clampLensPosition = (rawX: number, rawY: number) => {
+    const pad = 28;
+    const clampedX = Math.max(pad, Math.min(containerSize.width - pad, rawX));
+    const clampedY = Math.max(pad, Math.min(containerSize.height - pad, rawY));
+    return { x: clampedX, y: clampedY };
+  };
+
+  const handleImageLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    if (width > 0 && height > 0) {
+      setContainerSize({ width, height });
+      setLensPos({ x: width / 2, y: height / 2 });
+    }
+  };
+
+  const handleResponderEvent = (e: GestureResponderEvent) => {
+    const { locationX, locationY } = e.nativeEvent;
+    if (typeof locationX === 'number' && typeof locationY === 'number') {
+      setLensPos(clampLensPosition(locationX, locationY));
+    }
+  };
+
+  const nudgeLens = (dx: number, dy: number) => {
+    setLensPos((prev) => clampLensPosition(prev.x + dx, prev.y + dy));
+  };
+
+  const handleToggleSuperZoom = () => {
+    const next = !isSuperZoom;
+    setIsSuperZoom(next);
+    if (next) {
+      setLensPos({ x: containerSize.width / 2, y: containerSize.height / 2 });
+      showToast('Super Zoom ativo: arraste a lupa pelo tecido!', 'info');
+    }
+  };
+
+  const handleToggleAudioDescription = async () => {
+    try {
+      const speaking = await Speech.isSpeakingAsync();
+      if (speaking || isSpeaking) {
+        await Speech.stop();
+        setIsSpeaking(false);
+        return;
+      }
+
+      const colorNames = product.colors.map((c) => c.name).join(', ');
+      const highlights = product.bulletPoints.join('. ');
+      const description = `${product.name}, categoria ${product.category}. Preço: ${product.price.toFixed(
+        2
+      )} reais. Tamanho recomendado para você: ${effectiveIdealSize}, com base no seu perfil do provador virtual. Tecido: ${
+        product.fabric
+      }. Cores disponíveis: ${colorNames}. Destaques da peça: ${highlights}.`;
+
+      setIsSpeaking(true);
+      Speech.speak(description, {
+        language: 'pt-BR',
+        rate: 0.98,
+        onDone: () => setIsSpeaking(false),
+        onStopped: () => setIsSpeaking(false),
+        onError: () => setIsSpeaking(false),
+      });
+    } catch {
+      setIsSpeaking(false);
+      showToast('Síntese de voz não disponível neste dispositivo.', 'info');
+    }
+  };
 
   const handleAddToCart = () => {
     addToCart(product, selectedSize, selectedColor);
     setAddedFeedback(true);
+    showToast(
+      `✓ ${product.name} (Tam ${selectedSize}) adicionado à sacola!`,
+      'success'
+    );
     if (feedbackTimeoutRef.current) {
       clearTimeout(feedbackTimeoutRef.current);
     }
@@ -65,26 +171,76 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]}>
+      <AccessibilityBar />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        scrollEnabled={!isDraggingLens}
       >
         <View style={styles.topNav}>
           <TouchableOpacity
-            style={styles.backButton}
+            style={[
+              styles.backButton,
+              highContrast && {
+                borderWidth: 2,
+                borderColor: palette.border,
+                borderRadius: 10,
+              },
+            ]}
             onPress={() => navigation.goBack()}
             accessibilityRole="button"
             accessibilityLabel="Voltar para a lista de produtos"
           >
-            <ArrowLeft size={20} color={Colors.deepSpaceNavy} />
-            <AccessibleText size="sm" weight="bold" color={Colors.deepSpaceNavy}>
+            <ArrowLeft size={20} color={palette.iconPrimary} />
+            <AccessibleText size="sm" weight="bold" color={palette.heading}>
               Voltar
+            </AccessibleText>
+          </TouchableOpacity>
+
+          {/* Botão de Audiodescrição Completa da Peça (expo-speech) */}
+          <TouchableOpacity
+            style={[
+              styles.audioDescBtn,
+              isSpeaking && styles.audioDescBtnActive,
+              highContrast && {
+                borderWidth: 2,
+                borderColor: palette.border,
+              },
+            ]}
+            onPress={handleToggleAudioDescription}
+            accessibilityRole="button"
+            accessibilityLabel={
+              isSpeaking
+                ? 'Parar audiodescrição da peça'
+                : 'Ouvir audiodescrição completa da peça'
+            }
+          >
+            {isSpeaking ? (
+              <VolumeX size={18} color={Colors.white} />
+            ) : (
+              <Volume2 size={18} color={Colors.white} />
+            )}
+            <AccessibleText size="xs" weight="bold" color={Colors.white}>
+              {isSpeaking ? 'Parar Áudio' : 'Audiodescrição'}
             </AccessibleText>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.imageContainer}>
+        {/* Área da Imagem com Lupa Móvel de Super Zoom */}
+        <View
+          style={styles.imageContainer}
+          onLayout={handleImageLayout}
+          onStartShouldSetResponder={() => isSuperZoom}
+          onMoveShouldSetResponder={() => isSuperZoom}
+          onResponderGrant={(e) => {
+            setIsDraggingLens(true);
+            handleResponderEvent(e);
+          }}
+          onResponderMove={handleResponderEvent}
+          onResponderRelease={() => setIsDraggingLens(false)}
+          onResponderTerminate={() => setIsDraggingLens(false)}
+        >
           {imageError ? (
             <View style={[styles.image, styles.fallbackContainer]}>
               <ShoppingBag size={56} color={Colors.disabled} />
@@ -95,95 +251,242 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
           ) : (
             <Image
               source={{ uri: product.imageUrl }}
-              style={[styles.image, isSuperZoom && styles.imageSuperZoom]}
-              resizeMode={isSuperZoom ? 'cover' : 'contain'}
+              style={styles.image}
+              resizeMode="cover"
               onError={() => setImageError(true)}
             />
           )}
 
+          {/* Lupa Móvel Interativa (Super Zoom) */}
+          {!imageError && isSuperZoom && (
+            <View
+              pointerEvents="none"
+              style={[
+                styles.loupeWindow,
+                {
+                  left: lensPos.x - LENS_SIZE / 2,
+                  top: lensPos.y - LENS_SIZE / 2,
+                  borderColor: highContrast ? '#FACC15' : Colors.electricIris,
+                },
+              ]}
+            >
+              <Image
+                source={{ uri: product.imageUrl }}
+                resizeMode="cover"
+                style={{
+                  position: 'absolute',
+                  width: containerSize.width * ZOOM_SCALE,
+                  height: containerSize.height * ZOOM_SCALE,
+                  left: LENS_SIZE / 2 - lensPos.x * ZOOM_SCALE,
+                  top: LENS_SIZE / 2 - lensPos.y * ZOOM_SCALE,
+                }}
+              />
+              <View style={styles.loupeBadge}>
+                <AccessibleText size="xs" weight="bold" color={Colors.white}>
+                  2.6x
+                </AccessibleText>
+              </View>
+            </View>
+          )}
+
           {!imageError && (
             <TouchableOpacity
-              style={[styles.zoomButton, isSuperZoom && styles.zoomButtonActive]}
-              onPress={() => setIsSuperZoom(!isSuperZoom)}
+              style={[
+                styles.zoomButton,
+                isSuperZoom && styles.zoomButtonActive,
+                highContrast && {
+                  borderWidth: 2,
+                  borderColor: '#FFFFFF',
+                },
+              ]}
+              onPress={handleToggleSuperZoom}
               accessibilityRole="button"
-              accessibilityLabel={isSuperZoom ? 'Desativar Super Zoom' : 'Ativar Super Zoom para ver textura do tecido'}
+              accessibilityLabel={
+                isSuperZoom
+                  ? 'Desativar Super Zoom'
+                  : 'Ativar Super Zoom com lupa móvel sobre o tecido'
+              }
             >
               <ZoomIn size={18} color={Colors.white} />
               <AccessibleText size="xs" weight="bold" color={Colors.white}>
-                {isSuperZoom ? 'Zoom Normal' : 'Super Zoom Tecido'}
+                Super Zoom
               </AccessibleText>
             </TouchableOpacity>
           )}
         </View>
 
-        <View style={styles.infoCard}>
-          <AccessibleText size="xs" weight="bold" color={Colors.charcoalSlate}>
+        {/* Controles Assistivos da Lupa quando o Super Zoom está ativo */}
+        {isSuperZoom && !imageError && (
+          <View
+            style={[
+              styles.loupeControlsBar,
+              {
+                backgroundColor: palette.surface,
+                borderColor: palette.border,
+              },
+            ]}
+          >
+            <View style={styles.loupeHintRow}>
+              <Move size={16} color={palette.iconAccent} />
+              <AccessibleText size="xs" weight="bold" color={palette.textPrimary}>
+                Arraste o dedo na foto para mover a lupa ou use as setas:
+              </AccessibleText>
+            </View>
+            <View style={styles.nudgeButtonsRow}>
+              <TouchableOpacity
+                style={[styles.nudgeBtn, { borderColor: palette.border }]}
+                onPress={() => nudgeLens(-35, 0)}
+                accessibilityRole="button"
+                accessibilityLabel="Mover lupa para a esquerda"
+              >
+                <AccessibleText size="sm" weight="bold" color={palette.textPrimary}>
+                  ← Esq
+                </AccessibleText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.nudgeBtn, { borderColor: palette.border }]}
+                onPress={() => nudgeLens(0, -35)}
+                accessibilityRole="button"
+                accessibilityLabel="Mover lupa para cima"
+              >
+                <AccessibleText size="sm" weight="bold" color={palette.textPrimary}>
+                  ↑ Cima
+                </AccessibleText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.nudgeBtn, { borderColor: palette.border }]}
+                onPress={() => nudgeLens(0, 35)}
+                accessibilityRole="button"
+                accessibilityLabel="Mover lupa para baixo"
+              >
+                <AccessibleText size="sm" weight="bold" color={palette.textPrimary}>
+                  ↓ Baixo
+                </AccessibleText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.nudgeBtn, { borderColor: palette.border }]}
+                onPress={() => nudgeLens(35, 0)}
+                accessibilityRole="button"
+                accessibilityLabel="Mover lupa para a direita"
+              >
+                <AccessibleText size="sm" weight="bold" color={palette.textPrimary}>
+                  Dir →
+                </AccessibleText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        <View
+          style={[
+            styles.infoCard,
+            {
+              backgroundColor: palette.surface,
+              borderColor: palette.border,
+              borderWidth: palette.borderWidth,
+            },
+          ]}
+        >
+          <AccessibleText size="xs" weight="bold" color={palette.textSecondary}>
             {product.category.toUpperCase()}
           </AccessibleText>
 
-          <AccessibleText size="2xl" weight="bold" color={Colors.highInkSlate} style={styles.productTitle}>
+          <AccessibleText size="2xl" weight="bold" color={palette.textPrimary} style={styles.productTitle}>
             {product.name}
           </AccessibleText>
 
           <View style={styles.priceRow}>
-            <AccessibleText size="3xl" weight="bold" color={Colors.electricIris}>
+            <AccessibleText size="3xl" weight="bold" color={palette.accent}>
               {product.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
             </AccessibleText>
             {product.originalPrice && !focusMode && (
-              <AccessibleText size="base" color={Colors.charcoalSlate} style={styles.originalPrice}>
-                {product.originalPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              <AccessibleText size="base" color={palette.textSecondary} style={styles.originalPrice}>
+                {product.originalPrice.toLocaleString('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                })}
               </AccessibleText>
             )}
           </View>
 
           {/* Banner do Provador Virtual Inteligente */}
-          <View style={styles.recommenderCard}>
+          <View
+            style={[
+              styles.recommenderCard,
+              {
+                backgroundColor: palette.successBg,
+                borderColor: palette.success,
+                borderWidth: highContrast ? 2.5 : 1.5,
+              },
+            ]}
+          >
             <View style={styles.recommenderHeader}>
-              <Sparkles size={18} color={Colors.successEmerald} />
-              <AccessibleText size="sm" weight="bold" color={Colors.successEmerald}>
+              <Sparkles size={18} color={palette.success} />
+              <AccessibleText size="sm" weight="bold" color={palette.success}>
                 Provador Virtual: Tamanho Ideal Sugerido
               </AccessibleText>
             </View>
-            <AccessibleText size="sm" color={Colors.highInkSlate} style={styles.recommenderBody}>
-              Com base no seu perfil anatômico e histórico de compras, o tamanho{' '}
-              <AccessibleText size="sm" weight="bold" color={Colors.deepSpaceNavy}>
-                "{product.recommendedSize}"
+            <AccessibleText size="sm" color={palette.textPrimary} style={styles.recommenderBody}>
+              Com base no seu perfil anatômico ({fitProfile.heightCm}cm, {fitProfile.weightKg}kg), o tamanho{' '}
+              <AccessibleText size="sm" weight="bold" color={palette.heading}>
+                "{effectiveIdealSize}"
               </AccessibleText>{' '}
               proporcionará o caimento ideal e sem aperto.
             </AccessibleText>
+            <TouchableOpacity
+              style={styles.openFittingRoomLink}
+              onPress={() => rootNavigation.navigate('FittingRoomTab')}
+              accessibilityRole="button"
+              accessibilityLabel="Abrir Provador Virtual para ajustar medidas ou usar câmera"
+            >
+              <AccessibleText size="xs" weight="bold" color={palette.accent}>
+                Personalizar medidas ou usar câmera no Provador Virtual →
+              </AccessibleText>
+            </TouchableOpacity>
           </View>
 
           {/* Seleção de Tamanho */}
           <View style={styles.selectionSection}>
-            <AccessibleText size="sm" weight="bold" color={Colors.deepSpaceNavy} style={styles.sectionLabel}>
+            <AccessibleText size="sm" weight="bold" color={palette.heading} style={styles.sectionLabel}>
               Selecione o Tamanho:
             </AccessibleText>
             <View style={styles.sizesRow}>
               {product.availableSizes.map((size) => {
                 const isSelected = selectedSize === size;
-                const isIdeal = size === product.recommendedSize;
+                const isIdeal = size === effectiveIdealSize;
                 return (
                   <TouchableOpacity
                     key={size}
                     style={[
                       styles.sizeBox,
-                      isSelected && styles.sizeBoxSelected,
-                      isIdeal && styles.sizeBoxIdeal,
+                      {
+                        backgroundColor: isSelected
+                          ? palette.accent
+                          : palette.surfaceSecondary,
+                        borderColor: isIdeal ? palette.success : palette.border,
+                        borderWidth: isIdeal || highContrast ? 2.5 : 1.5,
+                      },
                     ]}
                     onPress={() => setSelectedSize(size)}
                     accessibilityRole="button"
-                    accessibilityLabel={`Tamanho ${size}${isIdeal ? ', tamanho recomendado para você' : ''}`}
+                    accessibilityLabel={`Tamanho ${size}${
+                      isIdeal ? ', tamanho recomendado para você' : ''
+                    }`}
                   >
                     <AccessibleText
                       size="base"
                       weight="bold"
-                      color={isSelected ? Colors.white : Colors.highInkSlate}
+                      color={isSelected ? palette.accentContrastText : palette.textPrimary}
                     >
                       {size}
                     </AccessibleText>
                     {isIdeal && (
                       <View style={styles.idealBadge}>
-                        <AccessibleText size="xs" weight="bold" color={isSelected ? Colors.white : Colors.successEmerald}>
+                        <AccessibleText
+                          size="xs"
+                          weight="bold"
+                          color={isSelected ? palette.accentContrastText : palette.success}
+                        >
                           ★
                         </AccessibleText>
                       </View>
@@ -195,7 +498,7 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
           </View>
 
           <View style={styles.selectionSection}>
-            <AccessibleText size="sm" weight="bold" color={Colors.deepSpaceNavy} style={styles.sectionLabel}>
+            <AccessibleText size="sm" weight="bold" color={palette.heading} style={styles.sectionLabel}>
               Cor Selecionada: {selectedColor}
             </AccessibleText>
             <View style={styles.colorsRow}>
@@ -206,17 +509,25 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
                     key={c.name}
                     style={[
                       styles.colorPill,
-                      isSelected && styles.colorPillSelected,
+                      {
+                        backgroundColor: isSelected
+                          ? palette.surfaceSecondary
+                          : palette.surface,
+                        borderColor: isSelected ? palette.accent : palette.border,
+                        borderWidth: isSelected || highContrast ? 2.5 : 1.5,
+                      },
                     ]}
                     onPress={() => setSelectedColor(c.name)}
                     accessibilityRole="button"
-                    accessibilityLabel={`Cor ${c.name}, ${isSelected ? 'selecionada' : 'disponível'}`}
+                    accessibilityLabel={`Cor ${c.name}, ${
+                      isSelected ? 'selecionada' : 'disponível'
+                    }`}
                   >
                     <View style={[styles.colorDot, { backgroundColor: c.hex }]} />
                     <AccessibleText
                       size="xs"
                       weight={isSelected ? 'bold' : 'medium'}
-                      color={isSelected ? Colors.electricIris : Colors.highInkSlate}
+                      color={isSelected ? palette.accent : palette.textPrimary}
                     >
                       {c.name}
                     </AccessibleText>
@@ -226,21 +537,21 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             </View>
           </View>
 
-          <View style={styles.bulletSection}>
-            <AccessibleText size="base" weight="bold" color={Colors.deepSpaceNavy} style={styles.bulletTitle}>
+          <View style={[styles.bulletSection, { borderTopColor: palette.border }]}>
+            <AccessibleText size="base" weight="bold" color={palette.heading} style={styles.bulletTitle}>
               Destaques e Sensação Tátil:
             </AccessibleText>
-            <View style={styles.fabricBadge}>
-              <Info size={16} color={Colors.deepSpaceNavy} />
-              <AccessibleText size="xs" weight="bold" color={Colors.deepSpaceNavy}>
+            <View style={[styles.fabricBadge, { backgroundColor: palette.surfaceSecondary }]}>
+              <Info size={16} color={palette.iconPrimary} />
+              <AccessibleText size="xs" weight="bold" color={palette.textPrimary}>
                 Tecido: {product.fabric}
               </AccessibleText>
             </View>
 
             {product.bulletPoints.map((point, index) => (
               <View key={index} style={styles.bulletItem}>
-                <View style={styles.bulletDot} />
-                <AccessibleText size="sm" color={Colors.charcoalSlate} style={styles.bulletText}>
+                <View style={[styles.bulletDot, { backgroundColor: palette.accent }]} />
+                <AccessibleText size="sm" color={palette.textSecondary} style={styles.bulletText}>
                   {point}
                 </AccessibleText>
               </View>
@@ -263,14 +574,24 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
               title="Adicionar à Sacola"
               onPress={handleAddToCart}
               variant="primary"
-              icon={<ShoppingBag size={20} color={Colors.white} />}
+              icon={
+                <ShoppingBag
+                  size={20}
+                  color={highContrast && darkMode ? '#000000' : Colors.white}
+                />
+              }
             />
 
             <CustomButton
               title="Comprar Agora (1 Clique)"
               onPress={handleBuyNow}
               variant="success"
-              icon={<Zap size={20} color={Colors.white} />}
+              icon={
+                <Zap
+                  size={20}
+                  color={highContrast && darkMode ? '#000000' : Colors.white}
+                />
+              }
               style={styles.buyNowButton}
             />
           </View>
@@ -293,7 +614,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   backButton: {
     flexDirection: 'row',
@@ -302,14 +623,27 @@ const styles = StyleSheet.create({
     minHeight: 44,
     minWidth: 44,
     justifyContent: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 6,
+  },
+  audioDescBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.electricIris,
+    paddingHorizontal: 14,
+    minHeight: 44,
+    borderRadius: 22,
+  },
+  audioDescBtnActive: {
+    backgroundColor: Colors.warmCoral,
   },
   imageContainer: {
     width: '100%',
     height: 320,
     backgroundColor: '#E2E8F0',
     position: 'relative',
+    overflow: 'hidden',
   },
   image: {
     width: '100%',
@@ -324,17 +658,64 @@ const styles = StyleSheet.create({
   fallbackText: {
     letterSpacing: 0.2,
   },
-  imageSuperZoom: {
-    transform: [{ scale: 1.4 }],
+  loupeWindow: {
+    position: 'absolute',
+    width: LENS_SIZE,
+    height: LENS_SIZE,
+    borderRadius: LENS_SIZE / 2,
+    borderWidth: 4,
+    borderColor: Colors.electricIris,
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+  },
+  loupeBadge: {
+    position: 'absolute',
+    bottom: 6,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  loupeControlsBar: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 24,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  loupeHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  nudgeButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  nudgeBtn: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   zoomButton: {
     position: 'absolute',
-    bottom: 16,
+    bottom: 24,
     right: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(30, 27, 75, 0.85)',
+    backgroundColor: 'rgba(30, 27, 75, 0.9)',
     paddingHorizontal: 16,
     paddingVertical: 10,
     minHeight: 44,
@@ -348,7 +729,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    marginTop: -20,
+    marginTop: -16,
     padding: 20,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -382,6 +763,12 @@ const styles = StyleSheet.create({
   recommenderBody: {
     lineHeight: 20,
   },
+  openFittingRoomLink: {
+    marginTop: 8,
+    paddingVertical: 6,
+    minHeight: 36,
+    justifyContent: 'center',
+  },
   selectionSection: {
     marginBottom: 18,
   },
@@ -403,14 +790,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 12,
-  },
-  sizeBoxSelected: {
-    backgroundColor: Colors.deepSpaceNavy,
-    borderColor: Colors.deepSpaceNavy,
-  },
-  sizeBoxIdeal: {
-    borderColor: Colors.successEmerald,
-    borderWidth: 2,
   },
   idealBadge: {
     position: 'absolute',
@@ -434,10 +813,6 @@ const styles = StyleSheet.create({
     borderColor: Colors.cardBorder,
     backgroundColor: Colors.white,
     justifyContent: 'center',
-  },
-  colorPillSelected: {
-    borderColor: Colors.electricIris,
-    backgroundColor: '#EEF2FF',
   },
   colorDot: {
     width: 14,

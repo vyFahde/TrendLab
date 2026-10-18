@@ -1,27 +1,48 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import * as Speech from 'expo-speech';
 import { RootStackParamList } from '../../types';
 import { AccessibleText } from '../../components/AccessibleText';
+import { AccessibilityBar } from '../../components/AccessibilityBar';
 import { CustomButton } from '../../components/CustomButton';
+import { useAccessibility } from '../../context/AccessibilityContext';
 import Colors from '../../theme/colors';
-import { CheckCircle2, ShoppingBag, Truck, ArrowRight, Home } from 'lucide-react-native';
+import { CheckCircle2, Truck, Home } from 'lucide-react-native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderSuccess'>;
 
 export const OrderSuccessScreen: React.FC<Props> = ({ route, navigation }) => {
   const { orderId, total } = route.params;
+  const { palette, highContrast } = useAccessibility();
+
+  useEffect(() => {
+    try {
+      Speech.speak(
+        `Pedido confirmado com sucesso! Número do pedido: ${orderId}. Valor total: ${total.toFixed(
+          2
+        )} reais.`,
+        { language: 'pt-BR', rate: 0.98 }
+      );
+    } catch {
+      // Silencioso caso TTS não esteja disponível
+    }
+    return () => {
+      Speech.stop().catch(() => {});
+    };
+  }, [orderId, total]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]}>
+      <AccessibilityBar />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Ícone Animado de Sucesso */}
-        <View style={styles.iconCircle}>
-          <CheckCircle2 size={64} color={Colors.white} />
+        <View style={[styles.iconCircle, { backgroundColor: palette.success }]}>
+          <CheckCircle2 size={64} color={highContrast ? '#000000' : Colors.white} />
         </View>
 
         <AccessibleText size="xs" weight="bold" color={Colors.successEmerald} style={styles.badge}>
@@ -37,7 +58,16 @@ export const OrderSuccessScreen: React.FC<Props> = ({ route, navigation }) => {
         </AccessibleText>
 
         {/* Card com Detalhes do Pedido */}
-        <View style={styles.detailsCard}>
+        <View
+          style={[
+            styles.detailsCard,
+            {
+              backgroundColor: palette.surface,
+              borderColor: palette.border,
+              borderWidth: highContrast ? 2 : 1,
+            },
+          ]}
+        >
           <View style={styles.detailRow}>
             <AccessibleText size="sm" color={Colors.charcoalSlate}>
               Número do Pedido:
@@ -47,7 +77,7 @@ export const OrderSuccessScreen: React.FC<Props> = ({ route, navigation }) => {
             </AccessibleText>
           </View>
 
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
           <View style={styles.detailRow}>
             <AccessibleText size="sm" color={Colors.charcoalSlate}>
@@ -58,10 +88,19 @@ export const OrderSuccessScreen: React.FC<Props> = ({ route, navigation }) => {
             </AccessibleText>
           </View>
 
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
-          <View style={styles.shippingNotice}>
-            <Truck size={20} color={Colors.successEmerald} />
+          <View
+            style={[
+              styles.shippingNotice,
+              {
+                backgroundColor: palette.surfaceSecondary,
+                borderWidth: highContrast ? 1.5 : 0,
+                borderColor: palette.success,
+              },
+            ]}
+          >
+            <Truck size={20} color={palette.success} />
             <View style={styles.shippingText}>
               <AccessibleText size="xs" weight="bold" color={Colors.successEmerald}>
                 Frete com Rastreamento
@@ -79,7 +118,7 @@ export const OrderSuccessScreen: React.FC<Props> = ({ route, navigation }) => {
             title="Voltar ao Catálogo"
             onPress={() => navigation.replace('MainTabs')}
             variant="primary"
-            icon={<Home size={20} color={Colors.white} />}
+            icon={<Home size={20} color={palette.primaryContent} />}
             style={styles.mainButton}
           />
         </View>

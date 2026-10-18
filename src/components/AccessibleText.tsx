@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, TextProps, StyleSheet } from 'react-native';
+import { Text, TextProps } from 'react-native';
 import { useAccessibility } from '../context/AccessibilityContext';
 import Colors from '../theme/colors';
 
@@ -35,19 +35,51 @@ export const AccessibleText: React.FC<AccessibleTextProps> = ({
   color = Colors.highInkSlate,
   ...rest
 }) => {
-  const { fontScale, highContrast } = useAccessibility();
+  const { fontScale, highContrast, darkMode, palette } = useAccessibility();
 
   const finalFontSize = Math.round(baseFontSizes[size] * fontScale);
-  const finalColor = highContrast && color === Colors.charcoalSlate ? Colors.highInkSlate : color;
+
+  const resolveAccessibleColor = (rawColor: string): string => {
+    if (!darkMode && !highContrast) return rawColor;
+
+    switch (rawColor) {
+      case Colors.highInkSlate:
+        return palette.textPrimary;
+      case Colors.charcoalSlate:
+        return palette.textSecondary;
+      case Colors.deepSpaceNavy:
+        return palette.heading;
+      case Colors.electricIris:
+        return palette.accent;
+      case Colors.warmCoral:
+        return palette.coral;
+      case Colors.successEmerald:
+        return palette.success;
+      case Colors.alertCrimson:
+        return palette.danger;
+      default:
+        return rawColor;
+    }
+  };
+
+  // Em Alto Contraste, reforça o peso da fonte para máxima nitidez
+  const effectiveWeight = highContrast
+    ? weight === 'regular'
+      ? 'semiBold'
+      : 'bold'
+    : weight;
+
+  const finalColor = resolveAccessibleColor(color);
 
   return (
     <Text
       style={[
         {
           fontSize: finalFontSize,
-          fontWeight: fontWeights[weight],
+          fontWeight: fontWeights[effectiveWeight],
           color: finalColor,
-          lineHeight: Math.round(finalFontSize * 1.35),
+          lineHeight: Math.round(finalFontSize * 1.38),
+          letterSpacing: highContrast ? 0.35 : 0,
         },
         style,
       ]}

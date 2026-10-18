@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { AccessibleText } from './AccessibleText';
+import { useAccessibility } from '../context/AccessibilityContext';
 import Colors from '../theme/colors';
 
 interface CustomButtonProps {
@@ -34,14 +35,39 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
   accessibilityHint,
 }) => {
   const [isFocused, setIsFocused] = useState(false);
+  const { highContrast, darkMode, palette } = useAccessibility();
 
   const getBackgroundColor = (pressed: boolean) => {
     if (disabled) return Colors.disabled;
+    if (highContrast && darkMode) {
+      switch (variant) {
+        case 'primary':
+          return pressed ? '#EAB308' : '#FACC15';
+        case 'secondary':
+          return pressed ? '#1E293B' : '#111827';
+        case 'success':
+          return pressed ? '#16A34A' : '#22C55E';
+        case 'outline':
+          return pressed ? '#1E293B' : '#000000';
+      }
+    }
+    if (highContrast) {
+      switch (variant) {
+        case 'primary':
+          return pressed ? '#000000' : '#0F172A';
+        case 'secondary':
+          return pressed ? '#000000' : '#1E1B4B';
+        case 'success':
+          return pressed ? '#052E16' : '#14532D';
+        case 'outline':
+          return pressed ? '#E2E8F0' : '#FFFFFF';
+      }
+    }
     switch (variant) {
       case 'primary':
         return pressed ? '#3730A3' : Colors.electricIris;
       case 'secondary':
-        return pressed ? '#17143A' : Colors.deepSpaceNavy;
+        return pressed ? '#17143A' : darkMode ? '#334155' : Colors.deepSpaceNavy;
       case 'success':
         return pressed ? '#166534' : Colors.successEmerald;
       case 'outline':
@@ -52,8 +78,17 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
   };
 
   const getTextColor = () => {
+    if (disabled) return Colors.white;
+    if (highContrast && darkMode) {
+      if (variant === 'primary' || variant === 'success') return '#000000';
+      return '#FACC15';
+    }
+    if (highContrast) {
+      if (variant === 'outline') return '#000000';
+      return '#FFFFFF';
+    }
     if (variant === 'outline') {
-      return disabled ? Colors.disabled : Colors.electricIris;
+      return palette.accent;
     }
     return Colors.white;
   };
@@ -71,9 +106,16 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
       style={({ pressed }) => [
         styles.button,
         { backgroundColor: getBackgroundColor(pressed) },
-        variant === 'outline' && styles.outlineBorder,
+        variant === 'outline' && [
+          styles.outlineBorder,
+          { borderColor: palette.accent },
+        ],
+        highContrast && {
+          borderWidth: 2.5,
+          borderColor: darkMode ? '#FFFFFF' : '#000000',
+        },
         pressed && !disabled && !loading && styles.pressedTransform,
-        isFocused && styles.focusRing,
+        isFocused && [styles.focusRing, { borderColor: palette.border }],
         style,
       ]}
     >
@@ -136,4 +178,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

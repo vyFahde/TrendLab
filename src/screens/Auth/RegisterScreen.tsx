@@ -16,9 +16,11 @@ import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { RootStackParamList } from '../../types';
 import { AccessibleText } from '../../components/AccessibleText';
+import { AccessibilityBar } from '../../components/AccessibilityBar';
 import { CustomInput } from '../../components/CustomInput';
 import { CustomButton } from '../../components/CustomButton';
 import { useAuth } from '../../context/AuthContext';
+import { useAccessibility } from '../../context/AccessibilityContext';
 import Colors from '../../theme/colors';
 import { ArrowLeft, UserPlus } from 'lucide-react-native';
 
@@ -41,19 +43,9 @@ const registerValidationSchema = Yup.object().shape({
     .required('Confirme sua senha.'),
 });
 
-const DismissKeyboard: React.FC<{ children: React.ReactElement }> = ({ children }) => {
-  if (Platform.OS === 'web') {
-    return children;
-  }
-  return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      {children}
-    </TouchableWithoutFeedback>
-  );
-};
-
 export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const { registerUser } = useAuth();
+  const { palette, highContrast } = useAccessibility();
 
   const handleRegisterSubmit = async (values: {
     nome: string;
@@ -69,31 +61,39 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}>
+      <AccessibilityBar />
       <KeyboardAvoidingView
-        style={styles.container}
+        style={[styles.container, { backgroundColor: palette.background }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
         >
-          <DismissKeyboard>
-            <View>
+          <View>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
             accessibilityRole="button"
             accessibilityLabel="Voltar para a tela anterior"
           >
-            <ArrowLeft size={20} color={Colors.deepSpaceNavy} />
+            <ArrowLeft size={20} color={palette.iconPrimary} />
             <AccessibleText size="sm" weight="bold" color={Colors.deepSpaceNavy}>
               Voltar para o Login
             </AccessibleText>
           </TouchableOpacity>
 
-          <View style={styles.formCard}>
+          <View
+            style={[
+              styles.formCard,
+              {
+                backgroundColor: palette.surface,
+                borderColor: palette.border,
+                borderWidth: highContrast ? 2 : 1,
+              },
+            ]}
+          >
             <AccessibleText size="2xl" weight="bold" color={Colors.deepSpaceNavy} style={styles.title}>
               Criar Nova Conta
             </AccessibleText>
@@ -175,7 +175,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                     onPress={() => handleSubmit()}
                     loading={isSubmitting}
                     variant="primary"
-                    icon={<UserPlus size={20} color={Colors.white} />}
+                    icon={<UserPlus size={20} color={palette.primaryContent} />}
                     style={styles.submitButton}
                   />
                 </View>
@@ -183,7 +183,6 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             </Formik>
           </View>
           </View>
-          </DismissKeyboard>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

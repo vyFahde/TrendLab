@@ -5,6 +5,7 @@
 export * from './Auth/LoginScreen';
 export * from './Auth/RegisterScreen';
 export * from './Home/HomeScreen';
+export * from './FittingRoom/FittingRoomScreen';
 export * from './ProductDetail/ProductDetailScreen';
 export * from './Cart/CartScreen';
 export * from './Cart/OrderSuccessScreen';

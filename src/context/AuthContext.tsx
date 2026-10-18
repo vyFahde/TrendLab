@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useUsuarioStore } from '../store/usuario-store';
 
 export interface User {
   name: string;
@@ -19,13 +20,17 @@ const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const { setUsuario, hydrateFromStorage } = useUsuarioStore();
 
   useEffect(() => {
     const loadStoredUser = async () => {
       try {
+        await hydrateFromStorage();
         const storedUser = await AsyncStorage.getItem('@trendlab:active_user');
         if (storedUser) {
-          setUser(JSON.parse(storedUser));
+          const parsed: User = JSON.parse(storedUser);
+          setUser(parsed);
+          setUsuario(parsed.email, parsed.name);
         }
       } catch (error) {
         console.warn('Erro ao carregar usuário ativo', error);
@@ -34,7 +39,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
     loadStoredUser();
-  }, []);
+  }, [hydrateFromStorage, setUsuario]);
 
   const registerUser = async (name: string, email: string, password: string) => {
     const newUser = { name, email };
@@ -43,6 +48,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Define como usuário ativo da sessão
     await AsyncStorage.setItem('@trendlab:active_user', JSON.stringify(newUser));
     setUser(newUser);
+    setUsuario(email, name);
   };
 
   const loginUser = async (email: string, password?: string): Promise<boolean> => {
@@ -61,6 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const loggedUser = { name: defaultAcc.name, email: cleanEmail };
         await AsyncStorage.setItem('@trendlab:active_user', JSON.stringify(loggedUser));
         setUser(loggedUser);
+        setUsuario(loggedUser.email, loggedUser.name);
         return true;
       }
       return false;
@@ -75,6 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const loggedUser = { name: savedAccount.name, email: savedAccount.email };
           await AsyncStorage.setItem('@trendlab:active_user', JSON.stringify(loggedUser));
           setUser(loggedUser);
+          setUsuario(loggedUser.email, loggedUser.name);
           return true;
         }
         return false;
@@ -89,6 +97,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logoutUser = async () => {
     await AsyncStorage.removeItem('@trendlab:active_user');
     setUser(null);
+    setUsuario(null);
   };
 
   return (
