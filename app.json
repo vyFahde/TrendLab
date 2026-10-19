@@ -1,8 +1,11 @@
 {
   "expo": {
     "name": "TrendLab",
-    "slug": "TrendLab",
+    "slug": "trendlab",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,7 +19,15 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -36,6 +47,14 @@
           "locationWhenInUsePermission": "O TrendLab utiliza sua localização para preencher automaticamente seu endereço de entrega no checkout."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "dc60684e-e7a9-45ac-8f17-dd179b62799c"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/dc60684e-e7a9-45ac-8f17-dd179b62799c"
+    }
   }
 }
