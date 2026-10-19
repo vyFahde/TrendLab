@@ -2,27 +2,30 @@
 
 > **Desenvolvido por:** João Teixeira Duarte Neto  
 > **Instituição:** Centro Universitário CESMAC  
+> **Disciplinas:** Desenvolvimento Mobile & UI/UX  
 
 ---
 
 ## 📖 1. Sobre a Aplicação
-O **TrendLab** é uma plataforma mobile de e-commerce de moda desenvolvida com foco em **Acessibilidade Digital (WCAG AAA)** e **Calm UI**. O projeto foi desenhado para eliminar barreiras de acesso e proporcionar autonomia para usuários com diferentes necessidades:
-- **Baixa Visão, Miopia Severa e Astigmatismo:** Interface com tipografia de alto contraste, ampliação dinâmica de fontes, sintetizador de voz nativo (`expo-speech`) e modo de super zoom para análise de tecidos.
-- **TDAH e Dislexia:** Navegação objetiva em tópicos curtos (bullet points), ausência de anúncios distrativos e **Modo Foco** para redução de sobrecarga sensorial.
-- **Daltonismo e Baixa Literacia Digital:** Identificação nominal explícita de cores, botões com alvos táteis ampliados (mínimo 44x44px / 52px) e feedbacks com ícones universais associados a cores.
+O **TrendLab** é uma plataforma mobile completa de e-commerce de moda desenvolvida com foco em **Acessibilidade Digital (WCAG AAA)**, **Calm UI** e integração **Full-Stack REST + SQLite + JWT**. O projeto foi desenhado para eliminar barreiras sensoriais, visuais e motoras:
+- **Baixa Visão, Miopia Severa e Fotofobia:** Interface com **Modo Escuro (`darkMode`)**, **Alto Contraste WCAG AAA (`highContrast`)**, ampliação dinâmica de fontes (`1.0x` a `1.6x`), descrições ampliadas em `+2px` sem emojis (leitura limpa para TalkBack/VoiceOver), sintetizador de voz nativo (`expo-speech`) e **Super Zoom com Lupa Móvel Interativa (`2.6x`)** para inspeção de costuras e tramas do tecido.
+- **TDAH, TEA e Dislexia:** Navegação objetiva em tópicos curtos (*bullet points*), ausência de anúncios ou elementos piscantes e **Modo Foco Cognitivo (`focusMode`)** para redução de sobrecarga visual.
+- **Acessibilidade Motora e Daltonismo:** Identificação nominal explícita de cores, preenchimento automático de endereço via **GPS (`expo-location`)**, botões direcionais para mover a lupa do Super Zoom com toques simples, alvos táteis ampliados (mínimo `48px` a `56px`) e feedbacks não bloqueantes via **Toast** (`AccessibleToast`).
 
 ---
 
-## 🎨 2. Paleta de Cores Oficial
+## 🎨 2. Sistema de Paletas Visuais (4 Temas Dinâmicos)
 
-| Cor | Código Hex | Aplicação na Interface | Relação de Contraste |
+O aplicativo conta com um motor dinâmico de temas (`src/theme/colors.ts` e `src/context/AccessibilityContext.tsx`) que combina **Modo Claro**, **Modo Escuro** e **Alto Contraste WCAG AAA**:
+
+| Cor / Token | Código Hex | Aplicação na Interface | Relação de Contraste |
 | :--- | :--- | :--- | :--- |
 | **Deep Space Navy** | `#1E1B4B` | Cabeçalhos, Barra Inferior e Destaques | Contraste **16.5:1 (AAA)** |
 | **Electric Iris** | `#4338CA` | Botões Principais de Ação (CTA) | Contraste **7.2:1 (AAA)** |
-| **Warm Coral** | `#C43D27` | Badges de Foco e Destaques Importantes | Contraste **5.2:1 (AA com branco) / 4.96:1 (Clean Canvas)** |
-| **Clean Canvas** | `#F8FAFC` | Fundo Principal das Telas (Anti-fadiga) | Descanso Visual |
+| **High-Visibility Yellow** | `#FACC15` | Destaques, Bordas e CTAs em Alto Contraste Escuro | Contraste **13.4:1 c/ Preto (AAA)** |
+| **Warm Coral** | `#C43D27` | Badges de Promoção e Alertas de Sacola | Contraste **5.2:1 (AA)** |
+| **Clean Canvas / Dark Slate** | `#F8FAFC` / `#0F172A` | Fundo Principal (Modo Claro / Modo Escuro) | Descanso Visual Anti-fadiga |
 | **High-Ink Slate** | `#0F172A` | Títulos, Textos Primários e Preços | Contraste **17.8:1 (AAA)** |
-| **Charcoal Slate** | `#334155` | Legendas, Descrições e Subtítulos | Contraste **8.5:1 (AAA)** |
 | **Success Emerald** | `#15803D` | Sucesso, Tamanho Ideal no Provador | Acessível com ícone **✓** |
 | **Alert Crimson** | `#B91C1C` | Alertas e Erros de Preenchimento | Acessível com ícone **⚠️** |
 
@@ -30,81 +33,108 @@ O **TrendLab** é uma plataforma mobile de e-commerce de moda desenvolvida com f
 
 ## 📱 3. Estrutura, Telas e Recursos Nativos Implementados
 
-### Barra Superior de Acessibilidade (`src/components/AccessibilityBar.tsx`)
-Presente em todas as telas do aplicativo, oferecendo:
-- **Escala de Fonte em Tempo Real (`A-` / `A+`)**
-- **Modo Foco (Calm UI)** e **Alto Contraste AAA**
-- **Leitor de Áudio Nativo (`expo-speech`):** Síntese de voz em português (`pt-BR`) com leitura do resumo de acessibilidade e tamanho recomendado.
-- **Identificação de Rede / Wi-Fi (`expo-network`):** Indicador em tempo real do estado de conexão (`Wi-Fi`, `Online` ou `Offline`) e endereço IP do dispositivo.
+### Barra Superior Global de Acessibilidade (`src/components/AccessibilityBar.tsx`)
+Presente no topo das telas principais, permitindo ajustar a qualquer momento:
+- **Escala de Fonte em Tempo Real (`A-` / `A+`)** de `100%` até `160%`.
+- **Modo Escuro (`darkMode`):** Alternância rápida entre tema claro e escuro (ícones Lua/Sol).
+- **Alto Contraste (`highContrast`):** Reforça bordas (`2.5px`), pesos tipográficos, ícones e contraste absoluto (Preto/Branco/Amarelo `#FACC15`).
+- **Modo Foco (`focusMode`):** Oculta badges secundários e simplifica os cards para foco na decisão de compra.
 
-### Fluxo de Autenticação
-- **Login (`src/screens/Auth/LoginScreen.tsx`):** Validação com Formik + Yup e sincronização global de sessão com **Zustand** (`useUsuarioStore`).
-- **Cadastro (`src/screens/Auth/RegisterScreen.tsx`):** Criação de conta com validação simultânea de nome completo, e-mail, senha e confirmação de senha.
+### Fluxo de Autenticação + JWT (`POST /api/auth/local`)
+- **Login (`src/screens/Auth/LoginScreen.tsx`):** Validação com Formik + Yup, autenticação no Back-end SQL com retorno de **Token JWT** e sincronização global na store **Zustand** (`useUsuarioStore`).
+- **Cadastro (`src/screens/Auth/RegisterScreen.tsx`):** Criação de conta persistida na tabela SQL `users` (`POST /api/auth/local/register`) com login automático.
 
-### Catálogo e Descoberta (Listagem Otimizada com `FlatList`)
+### Catálogo e Descoberta (`FlatList` - Slide PM-10)
 - **Catálogo Inicial (`src/screens/Home/HomeScreen.tsx`):**
-  - **Listagem Otimizada (`FlatList` - PM-10):** Carregamento preguiçoso (*Lazy Loading*) de cards de produtos com `ListHeaderComponent` e `ListEmptyComponent`.
-  - **Modal de Filtros Rápidos e Busca por Voz (PM-11):** Filtro por categoria, tamanho e ordenação de preço com notificações `Toast` (`ToastAndroid` + `AccessibleToast`).
+  - **Listagem Virtualizada (`FlatList`):** Renderização otimizada do catálogo principal e da lista horizontal de categorias, com suporte a *Pull-to-Refresh* (`onRefresh`) conectado ao `GET /api/produtos`.
+  - **Filtros Combinados e Modais (`Modal` - Slide PM-11):** Filtro por categoria, tamanho e ordenação de preço (`Menor Preço` / `Maior Preço`), além de busca por texto e simulação de busca por voz.
+  - **Descrições Acessíveis (`+2px` sem emojis):** Textos de composição do tecido higienizados sem emojis e com fonte ampliada para leitura fluida em leitores de tela.
 
-### Provador Virtual Interativo & Câmera Nativa
-- **Provador Virtual (`src/screens/FittingRoom/FittingRoomScreen.tsx`):**
-  - **Calculadora Anatômica:** Calcula automaticamente o tamanho ideal em letras (`P` a `XG`) e numérico (`38` a `46`) com base em altura, peso e preferência sensorial de caimento.
-  - **Espelho Virtual com Câmera e Galeria (`expo-image-picker` - PM-12):** Captura foto pela câmera nativa (`launchCameraAsync`) ou seleciona da galeria (`launchImageLibraryAsync`) em Base64/URI.
-  - **Recomendação Falada (`expo-speech`):** Leitura em voz alta do tamanho ideal sugerido.
-  - **Catálogo Compatível (`FlatList`):** Lista peças disponíveis no tamanho calculado do usuário.
-
-### Detalhes da Peça
+### Detalhes da Peça, Voz Nativa e Super Zoom com Lupa Móvel
 - **Detalhes do Produto (`src/screens/ProductDetail/ProductDetailScreen.tsx`):**
-  - **Super Zoom:** Ampliação da peça para inspeção de textura e acabamento da costura.
-  - **Audiodescrição Completa (`expo-speech`):** Leitura em voz alta do nome, preço, tecido, cores e tópicos da peça.
-  - **Integração com Provador Virtual:** Destaca com estrela (`★`) o tamanho calculado no perfil do usuário.
+  - **Super Zoom com Lupa Móvel (`2.6x`):** Lupa circular interativa que o usuário pode arrastar com o dedo ou mouse sobre qualquer parte da roupa para inspecionar a textura do tecido e o acabamento das costuras, acompanhada de botões direcionais (`← Esq`, `↑ Cima`, `↓ Baixo`, `Dir →`).
+  - **Audiodescrição Completa (`expo-speech`):** Leitura em voz alta em português (`pt-BR`) do nome, categoria, preço, tamanho recomendado pelo provador, composição do tecido e diferenciais de acessibilidade.
+  - **Descrições Ampliadas (`+2px`):** Textos de tecido e lista de diferenciais sem emojis e com tipografia ampliada.
 
-### Sacola, Compra Expressa e Localização GPS
+### Provador Virtual Interativo & Câmera Nativa (Slide PM-12)
+- **Provador Virtual (`src/screens/FittingRoom/FittingRoomScreen.tsx`):**
+  - **Calculadora Anatômica (Zustand):** Calcula automaticamente o tamanho ideal em letras (`P` a `XG`) e numérico (`38` a `46`) com base em altura, peso e preferência de caimento (`justo`, `regular` ou `solto`).
+  - **Captura com Câmera e Galeria (`expo-image-picker`):** Captura foto pela câmera nativa (`launchCameraAsync`) ou seleciona da galeria (`launchImageLibraryAsync`) com conversão Base64 e persistência no perfil.
+
+### Sacola, Localização GPS e Checkout Integrado ao Banco SQL
 - **Sacola & Checkout (`src/screens/Cart/CartScreen.tsx`):**
-  - **Confirmação com `Alert` e `Toast` (PM-11):** Confirmação segura antes de remover itens e aviso instantâneo via Toast.
-  - **Localização e Endereço via GPS (`expo-location`):** Botão *"Usar Minha Localização Atual (GPS)"* que obtém coordenadas (`getCurrentPositionAsync`) e geocodificação reversa (`reverseGeocodeAsync`) para preencher CEP e endereço sem digitação.
-  - **Modal de Compra Expressa (PM-11):** Opção de compra em 1-clique com seleção direta entre **Pix**, **Cartão** e **Boleto**.
-- **Pedido Confirmado (`src/screens/Cart/OrderSuccessScreen.tsx`):** Confirmação visual e sonora (`expo-speech`) do pedido registrado.
+  - **Preenchimento de Endereço via GPS (`expo-location`):** Obtém as coordenadas de satélite (`getCurrentPositionAsync`) e realiza geocodificação reversa (`reverseGeocodeAsync`) para preencher automaticamente rua, número, bairro, cidade, UF e CEP.
+  - **Registro de Pedido no Banco SQL (`POST /api/pedidos`):** Ao finalizar a compra (Pix, Cartão ou Boleto), o pedido é gravado na tabela SQL `pedidos` autenticado com o cabeçalho `Authorization: Bearer <jwt>`.
+- **Pedido Confirmado (`src/screens/Cart/OrderSuccessScreen.tsx`):** Tela de recibo com resumo da compra.
 
-### Minha Conta & Configurações
+### Minha Conta, Diagnóstico de Rede Wi-Fi e Gestão de Pedidos
 - **Minha Conta (`src/screens/Profile/ProfileScreen.tsx`):**
-  - **Foto de Perfil com Câmera / Galeria (`expo-image-picker` - PM-12):** Atualização de foto do usuário persistida globalmente.
-  - **Diagnóstico de Conectividade (`expo-network`):** Exibe tipo de rede ativa (`Wi-Fi` / `Dados Móveis`) e IP local.
-  - **Histórico de Pedidos (Zustand):** Lista de pedidos concluídos com modal de recibo detalhado.
-  - **Painel de Acessibilidade:** Controles completos de escala tipográfica, Modo Foco e Alto Contraste.
+  - **Foto de Perfil com Câmera / Galeria (`expo-image-picker`):** Atualização da foto do usuário persistida globalmente.
+  - **Diagnóstico de Rede e Wi-Fi (`expo-network`):** Monitoramento em tempo real do tipo de conexão ativa (`WIFI` / `CELLULAR`), status de internet e endereço IP local do aparelho (`getIpAddressAsync`).
+  - **Histórico e Cancelamento de Pedidos (`GET` e `DELETE /api/pedidos/:id`):** Consulta de pedidos realizados com modal de detalhes e botão para cancelar/excluir o pedido diretamente no banco SQLite.
 
 ---
 
-## 🏗️ 4. Arquitetura do Projeto
+## 🗄️ 4. Back-end RESTful (Padrão Strapi) + Banco de Dados SQL (SQLite)
 
-```
+Seguindo os conteúdos das aulas **PM-14 (WebService REST)** e **PM-15 (Strapi + SQLite + JWT)**, o projeto inclui um servidor Node.js na porta `1337` (`backend/server.js`) conectado ao banco de dados relacional SQL **`backend/trendlab.sqlite`** (definido em `backend/schema.sql`):
+
+| Método | Rota HTTP | Query SQL Executada no SQLite | Descrição |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/status` | `SELECT COUNT(*) FROM users, produtos, pedidos` | Verifica status do servidor e total de registros |
+| `POST` | `/api/auth/local` | `SELECT * FROM users WHERE email = ? AND password = ?` | Autentica usuário e retorna `{ jwt, user }` |
+| `POST` | `/api/auth/local/register` | `INSERT INTO users (username, email, password) VALUES (...)` | Cadastra novo usuário no banco SQL e retorna `{ jwt, user }` |
+| `GET` | `/api/produtos` | `SELECT * FROM produtos WHERE category = ? ORDER BY id ASC` | Lista catálogo completo ou filtrado por categoria |
+| `GET` | `/api/pedidos` | `SELECT * FROM pedidos WHERE user_email = ?` | Lista histórico de compras do usuário logado (`[JWT]`) |
+| `POST` | `/api/pedidos` | `INSERT OR REPLACE INTO pedidos (...) VALUES (...)` | Grava novo pedido finalizado na Sacola (`[JWT]`) |
+| `PUT` | `/api/pedidos/:id` | `UPDATE pedidos SET address = ?, payment_method = ? WHERE id = ?` | Atualiza dados de um pedido existente (`[JWT]`) |
+| `DELETE` | `/api/pedidos/:id` | `DELETE FROM pedidos WHERE id = ?` | Cancela e remove um pedido do banco SQL (`[JWT]`) |
+
+---
+
+## 🏗️ 5. Arquitetura de Pastas do Projeto
+
+```text
 TrendLab/
-├── App.tsx                     # Ponto de entrada com Providers e AccessibleToast
-├── app.json                    # Configurações e plugins nativos do Expo
-├── eas.json                    # Canais de deploy do EAS
+├── App.tsx                         # Ponto de entrada, Moldura Mobile Web (412x892) e AccessibleToast
+├── app.json                        # Configurações do Expo SDK 57, permissões nativas e runtimeVersion
+├── eas.json                        # Perfis de publicação OTA (EAS Update)
+├── backend/
+│   ├── schema.sql                  # Script DDL SQL (CREATE TABLE users, produtos, pedidos e INDEX)
+│   ├── trendlab.sqlite             # Banco de dados relacional SQLite persistente
+│   ├── server.js                   # Servidor WebService REST (porta 1337) + JWT + Logger HTTP/SQL
+│   └── db.json                     # Carga inicial (seed) de usuários, produtos e pedidos
 └── src/
-    ├── components/             # Componentes modulares (AccessibilityBar, AccessibleToast, ProductCard...)
-    ├── context/                # Context API (Acessibilidade, Autenticação e Sacola)
-    ├── data/                   # Base de dados de produtos inclusivos
-    ├── navigation/             # Navegação híbrida: Native Stack + Bottom Tabs (4 abas)
-    ├── screens/                # 8 Telas completas da aplicação
-    ├── store/                  # Gerenciamento de Estado Global com Zustand (usuario-store, useToastStore)
-    ├── theme/                  # Tokens de cores (colors.ts) e espaçamento/raios (spacing.ts)
-    └── types/                  # Tipagem estrita com TypeScript
+    ├── components/                 # AccessibilityBar, AccessibleText, AccessibleToast, ProductCard, CustomButton, CustomInput
+    ├── context/                    # Contextos de Acessibilidade (4 temas), Autenticação e Sacola
+    ├── data/                       # Catálogo base de fallback (mockProducts.ts)
+    ├── navigation/                 # Navegação híbrida: AppNavigator (Stack), TabNavigator (CustomTabBar) e HomeStackNavigator
+    ├── screens/                    # 7 Telas completas (Login, Register, Home, ProductDetail, FittingRoom, Cart, OrderSuccess, Profile)
+    ├── services/                   # Cliente HTTP REST (api.ts) com detecção automática de IP LAN no mobile
+    ├── store/                      # Gerenciamento de Estado Global com Zustand (usuario-store.ts, useToastStore.ts)
+    ├── theme/                      # Paletas de cores WCAG AAA (colors.ts) e espaçamentos (spacing.ts)
+    └── types/                      # Interfaces TypeScript do domínio
 ```
 
 ---
 
-## 🚀 5. Como Executar o Projeto Localmente
+## 🚀 6. Como Executar o Projeto (Front-end + Back-end SQL)
 
-1. Abra o terminal na pasta raiz do projeto:
-   ```bash
-   cd "C:\Users\Joao\Documents\TrendLab"
-   ```
-2. Inicie o servidor do Expo:
-   ```bash
-   npx expo start
-   ```
-3. Para executar:
-   - **No Celular:** Abra o app **Expo Go** e escaneie o QR Code exibido.
-   - **No Navegador Web:** Pressione `w` no terminal.
+### 1. Iniciar o Servidor Back-end SQL (Terminal 1)
+Abra um terminal na pasta raiz do projeto e execute:
+```bash
+npm run backend
+```
+O servidor iniciará em `http://localhost:1337/api` conectado ao banco `backend/trendlab.sqlite` e exibirá no terminal todas as requisições HTTP e queries SQL executadas em tempo real.
+
+### 2. Iniciar o Aplicativo no Expo (Terminal 2)
+Em outro terminal na pasta raiz do projeto, execute:
+```bash
+npx expo start
+```
+- **No Celular (Expo Go):** Escaneie o QR Code exibido no terminal (o app detectará automaticamente o IP da sua máquina na rede Wi-Fi para conversar com o Back-end na porta `1337`).
+- **No Navegador Web:** Pressione `w` no terminal (o app será exibido dentro de uma moldura interativa de smartphone de `412x892` centralizada na tela).
+
+### Credenciais de Teste Rápido:
+- **E-mail:** `teresa.tavares@trendlab.com` | **Senha:** `123456`
+- **E-mail (Padrão Aula Strapi PM-15):** `teste@teste.com` | **Senha:** `Teste123456`

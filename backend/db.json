@@ -29,6 +29,12 @@
       "username": "Teste",
       "email": "teste@trendlab.com",
       "password": "123456"
+    },
+    {
+      "id": 6,
+      "username": "Testando",
+      "email": "testando@email.com",
+      "password": "123456"
     }
   ],
   "produtos": [
