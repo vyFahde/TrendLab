@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Product, OrderRecord } from '../types';
 import { mockProducts } from '../data/mockProducts';
 
+// Detecta automaticamente o IP da máquina na rede local quando executado no dispositivo móvel via Expo Go
 function resolveDefaultBaseUrl(): string {
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL;
@@ -25,9 +26,7 @@ const STORAGE_API_URL_KEY = '@trendlab:api_base_url';
 
 let currentBaseUrl = DEFAULT_BASE_URL;
 
-/**
- * Remove emojis de textos descritivos de produtos garantindo leitura limpa por leitores de tela (TalkBack / VoiceOver)
- */
+// Remove emojis de textos descritivos para evitar leitura truncada por leitores de tela (TalkBack / VoiceOver)
 export const stripEmojis = (text: string): string => {
   if (!text) return '';
   return text
@@ -45,9 +44,7 @@ export const sanitizeProductDescriptions = (product: Product): Product => ({
   bulletPoints: (product.bulletPoints || []).map((bp) => stripEmojis(bp)),
 });
 
-/**
- * Gera um token JWT estruturado em 3 partes (Header.Payload.Signature) conforme Slide PM-14
- */
+// Gera um token JWT em 3 partes (Header.Payload.Signature) para sessões iniciadas em modo offline
 export const createClientSideJwt = (email: string, name: string): string => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
   const encodeBase64Url = (obj: Record<string, unknown>) => {
@@ -76,7 +73,7 @@ export const createClientSideJwt = (email: string, name: string): string => {
     email: email.toLowerCase(),
     iat: Math.floor(Date.now() / 1000),
   });
-  const signature = 'TrendLabHMACSHA256SignaturePM14';
+  const signature = 'TrendLabHMACSHA256Signature';
   return `${header}.${payload}.${signature}`;
 };
 
@@ -115,9 +112,7 @@ export const api = {
       if (saved && saved.trim()) {
         currentBaseUrl = saved.trim().replace(/\/+$/, '');
       }
-    } catch {
-      // ignora erro de leitura
-    }
+    } catch {}
     return currentBaseUrl;
   },
 
@@ -126,15 +121,10 @@ export const api = {
     currentBaseUrl = clean;
     try {
       await AsyncStorage.setItem(STORAGE_API_URL_KEY, clean);
-    } catch {
-      // ignora
-    }
+    } catch {}
     return currentBaseUrl;
   },
 
-  /**
-   * Verifica conectividade com o WebService REST (GET /api/status)
-   */
   checkHealth: async (): Promise<ApiStatusInfo> => {
     const start = Date.now();
     try {
@@ -151,9 +141,7 @@ export const api = {
           baseUrl: currentBaseUrl,
         };
       }
-    } catch {
-      // Caso o servidor local na porta 1337 não esteja acessível no celular, valida via Cloud REST API
-    }
+    } catch {}
 
     try {
       const cloudRes = await fetchWithTimeout(`${CLOUD_REST_FALLBACK_URL}/posts/1`, {
@@ -177,9 +165,6 @@ export const api = {
     }
   },
 
-  /**
-   * POST /api/auth/local (Slide PM-15 - Login com retorno de JWT)
-   */
   login: async (
     identifier: string,
     password?: string
@@ -191,7 +176,6 @@ export const api = {
   } | null> => {
     const cleanEmail = identifier.trim().toLowerCase();
 
-    // 1. Tenta autenticar no servidor WebService Strapi/REST local (POST /api/auth/local)
     try {
       const res = await fetchWithTimeout(`${currentBaseUrl}/auth/local`, {
         method: 'POST',
@@ -214,19 +198,16 @@ export const api = {
           };
         }
       } else if (res.status === 400) {
-        // Credenciais recusadas pelo backend
         return null;
       }
-    } catch {
-      // Continua para validação local/cloud se o backend local estiver desligado
-    }
+    } catch {}
 
-    // 2. Contas padrão do projeto + conta do slide PM-15 (teste@teste.com / Teste123456)
+    // Fallback para contas locais caso o servidor back-end esteja inacessível
     const defaultAccounts: Record<string, { name: string; password?: string }> = {
       'teresa.tavares@trendlab.com': { name: 'Teresa Tavares', password: '123456' },
       'gabriel.gomes@trendlab.com': { name: 'Gabriel Gomes', password: '123456' },
       'admin@trendlab.com': { name: 'Administrador TrendLab', password: '123456' },
-      'teste@teste.com': { name: 'Aluno Teste Strapi', password: 'Teste123456' },
+      'teste@teste.com': { name: 'Aluno Teste', password: 'Teste123456' },
     };
 
     if (defaultAccounts[cleanEmail]) {
@@ -243,7 +224,6 @@ export const api = {
       return null;
     }
 
-    // 3. Verifica conta cadastrada no AsyncStorage
     try {
       const savedAccountStr = await AsyncStorage.getItem(`@trendlab:account:${cleanEmail}`);
       if (savedAccountStr) {
@@ -262,16 +242,11 @@ export const api = {
           };
         }
       }
-    } catch {
-      // ignora
-    }
+    } catch {}
 
     return null;
   },
 
-  /**
-   * POST /api/auth/local/register (Slide PM-15 - Cadastro de Usuário com retorno de JWT)
-   */
   register: async (
     username: string,
     email: string,
@@ -306,16 +281,13 @@ export const api = {
         }
       }
     } catch {
-      // Fallback Cloud REST POST
       try {
         await fetchWithTimeout(`${CLOUD_REST_FALLBACK_URL}/users`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: cleanName, email: cleanEmail }),
         });
-      } catch {
-        // ignora
-      }
+      } catch {}
     }
 
     const jwt = createClientSideJwt(cleanEmail, cleanName);
@@ -326,9 +298,6 @@ export const api = {
     };
   },
 
-  /**
-   * GET /api/produtos (Busca catálogo de produtos do WebService REST)
-   */
   getProducts: async (
     category?: string
   ): Promise<{
@@ -360,14 +329,11 @@ export const api = {
         };
       }
     } catch {
-      // Se o backend local na porta 1337 não estiver ativo, realiza chamada HTTP GET Cloud REST e retorna o catálogo higienizado
       try {
         await fetchWithTimeout(`${CLOUD_REST_FALLBACK_URL}/posts?_limit=1`, {
           method: 'GET',
         });
-      } catch {
-        // offline fallback
-      }
+      } catch {}
     }
 
     const sanitized = mockProducts.map(sanitizeProductDescriptions);
@@ -383,17 +349,17 @@ export const api = {
     };
   },
 
-  /**
-   * GET /api/pedidos (Busca histórico de pedidos no WebService com JWT)
-   */
   getOrders: async (
     userEmail?: string | null,
     jwt?: string | null
   ): Promise<{ orders: OrderRecord[]; source: 'local-strapi' | 'cloud-rest' } | null> => {
+    const cleanEmail = userEmail?.trim().toLowerCase();
+    if (!cleanEmail) {
+      return { orders: [], source: 'local-strapi' };
+    }
+
     try {
-      const query = userEmail
-        ? `?filters[usuario]=${encodeURIComponent(userEmail)}`
-        : '';
+      const query = `?filters[usuario]=${encodeURIComponent(cleanEmail)}`;
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
@@ -413,17 +379,15 @@ export const api = {
           : Array.isArray(json.data)
           ? json.data
           : [];
-        return { orders: list, source: 'local-strapi' };
+        const userOrders = list.filter(
+          (o) => !o.userEmail || o.userEmail.toLowerCase() === cleanEmail
+        );
+        return { orders: userOrders, source: 'local-strapi' };
       }
-    } catch {
-      // ignora se servidor local não estiver rodando
-    }
+    } catch {}
     return null;
   },
 
-  /**
-   * POST /api/pedidos (Cadastra novo pedido no WebService com Authorization: Bearer JWT)
-   */
   createOrder: async (
     order: OrderRecord,
     userEmail?: string | null,
@@ -440,7 +404,6 @@ export const api = {
       headers.Authorization = `Bearer ${jwt}`;
     }
 
-    // 1. Tenta enviar POST para o WebService Strapi/REST local
     try {
       const res = await fetchWithTimeout(`${currentBaseUrl}/pedidos`, {
         method: 'POST',
@@ -460,11 +423,8 @@ export const api = {
           source: 'local-strapi',
         };
       }
-    } catch {
-      // Continua para Cloud REST API
-    }
+    } catch {}
 
-    // 2. Envia POST para Cloud REST API para registrar a transação HTTP
     try {
       const cloudRes = await fetchWithTimeout(`${CLOUD_REST_FALLBACK_URL}/posts`, {
         method: 'POST',
@@ -490,9 +450,6 @@ export const api = {
     }
   },
 
-  /**
-   * DELETE /api/pedidos/:id (Remove um pedido no WebService com Authorization: Bearer JWT)
-   */
   deleteOrder: async (
     orderId: string,
     jwt?: string | null
@@ -521,9 +478,7 @@ export const api = {
           method: 'DELETE',
           headers,
         });
-      } catch {
-        // ignora
-      }
+      } catch {}
     }
 
     return { deleted: true, statusCode: 200 };

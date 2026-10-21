@@ -76,6 +76,9 @@ const defaultFitProfile: FitProfile = {
   photoUri: null,
 };
 
+const getOrdersStorageKey = (email: string) =>
+  `@trendlab:orders:${email.trim().toLowerCase()}`;
+
 export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
   usuario: null,
   userData: null,
@@ -87,18 +90,42 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
   apiStatus: null,
   isSyncingApi: false,
 
-  setUsuario: (email, name, jwt) =>
+  setUsuario: (email, name, jwt) => {
+    const cleanEmail = email ? email.trim().toLowerCase() : null;
+
     set((state) => ({
-      usuario: email,
-      jwtToken: jwt !== undefined ? jwt : email ? state.jwtToken : null,
-      userData: email
+      usuario: cleanEmail,
+      jwtToken: jwt !== undefined ? jwt : cleanEmail ? state.jwtToken : null,
+      orders: cleanEmail && state.usuario === cleanEmail ? state.orders : [],
+      userData: cleanEmail
         ? {
-            email,
-            name: name || state.userData?.name || email.split('@')[0],
+            email: cleanEmail,
+            name: name || state.userData?.name || cleanEmail.split('@')[0],
             avatarUri: state.avatarUri,
           }
         : null,
-    })),
+    }));
+
+    if (!cleanEmail) {
+      return;
+    }
+
+    (async () => {
+      try {
+        const savedUserOrders = await AsyncStorage.getItem(getOrdersStorageKey(cleanEmail));
+        const localOrders: OrderRecord[] = savedUserOrders ? JSON.parse(savedUserOrders) : [];
+        const filteredLocal = localOrders.filter(
+          (o) => !o.userEmail || o.userEmail.toLowerCase() === cleanEmail
+        );
+        if (get().usuario === cleanEmail) {
+          set({ orders: filteredLocal });
+        }
+        await get().syncWithBackend();
+      } catch (e) {
+        console.warn('Erro ao carregar pedidos do usuário:', e);
+      }
+    })();
+  },
 
   setAvatarUri: async (uri) => {
     set((state) => ({
@@ -143,27 +170,36 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
 
   addOrder: async (order) => {
     const { usuario, jwtToken, orders } = get();
-    // Envia POST /api/pedidos para o WebService REST com cabeçalho Authorization: Bearer JWT
-    await api.createOrder(order, usuario, jwtToken);
+    const cleanEmail = (usuario || order.userEmail || '').trim().toLowerCase();
+    const orderWithUser: OrderRecord = {
+      ...order,
+      userEmail: cleanEmail || undefined,
+    };
 
-    const nextOrders = [order, ...orders.filter((o) => o.id !== order.id)];
+    await api.createOrder(orderWithUser, cleanEmail, jwtToken);
+
+    const nextOrders = [orderWithUser, ...orders.filter((o) => o.id !== order.id)];
     set({ orders: nextOrders });
     try {
-      await AsyncStorage.setItem('@trendlab:orders', JSON.stringify(nextOrders));
+      if (cleanEmail) {
+        await AsyncStorage.setItem(getOrdersStorageKey(cleanEmail), JSON.stringify(nextOrders));
+      }
     } catch (e) {
       console.warn('Erro ao salvar histórico de pedidos:', e);
     }
   },
 
   removeOrder: async (orderId) => {
-    const { jwtToken, orders } = get();
-    // Envia DELETE /api/pedidos/:id para o WebService REST
+    const { usuario, jwtToken, orders } = get();
+    const cleanEmail = (usuario || '').trim().toLowerCase();
     await api.deleteOrder(orderId, jwtToken);
 
     const nextOrders = orders.filter((o) => o.id !== orderId);
     set({ orders: nextOrders });
     try {
-      await AsyncStorage.setItem('@trendlab:orders', JSON.stringify(nextOrders));
+      if (cleanEmail) {
+        await AsyncStorage.setItem(getOrdersStorageKey(cleanEmail), JSON.stringify(nextOrders));
+      }
     } catch (e) {
       console.warn('Erro ao remover pedido:', e);
     }
@@ -190,18 +226,32 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
     set({ isSyncingApi: true });
     try {
       await api.initBaseUrl();
+      const activeEmail = get().usuario?.trim().toLowerCase() || null;
       const [health, prodRes, remoteOrders] = await Promise.all([
         api.checkHealth(),
         api.getProducts(),
-        api.getOrders(get().usuario, get().jwtToken),
+        activeEmail ? api.getOrders(activeEmail, get().jwtToken) : Promise.resolve(null),
       ]);
 
-      let mergedOrders = get().orders;
-      if (remoteOrders && remoteOrders.orders.length > 0) {
-        const existingIds = new Set(mergedOrders.map((o) => o.id));
-        const newFromApi = remoteOrders.orders.filter((o) => !existingIds.has(o.id));
-        mergedOrders = [...newFromApi, ...mergedOrders];
-        await AsyncStorage.setItem('@trendlab:orders', JSON.stringify(mergedOrders));
+      let mergedOrders = activeEmail
+        ? get().orders.filter(
+            (o) => !o.userEmail || o.userEmail.toLowerCase() === activeEmail
+          )
+        : [];
+
+      if (activeEmail && remoteOrders) {
+        const remoteForUser = remoteOrders.orders.filter(
+          (o) => !o.userEmail || o.userEmail.toLowerCase() === activeEmail
+        );
+        const remoteIds = new Set(remoteForUser.map((o) => o.id));
+        const localOnlyForUser = mergedOrders.filter(
+          (o) => !remoteIds.has(o.id) && o.userEmail?.toLowerCase() === activeEmail
+        );
+        mergedOrders = [...remoteForUser, ...localOnlyForUser];
+        await AsyncStorage.setItem(
+          getOrdersStorageKey(activeEmail),
+          JSON.stringify(mergedOrders)
+        );
       }
 
       set({
@@ -228,21 +278,19 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
   hydrateFromStorage: async () => {
     try {
       await api.initBaseUrl();
-      const [savedAvatar, savedFit, savedOrders, savedJwt] = await Promise.all([
+      await AsyncStorage.removeItem('@trendlab:orders');
+      const [savedAvatar, savedFit, savedJwt] = await Promise.all([
         AsyncStorage.getItem('@trendlab:avatar_uri'),
         AsyncStorage.getItem('@trendlab:fit_profile'),
-        AsyncStorage.getItem('@trendlab:orders'),
         AsyncStorage.getItem('@trendlab:jwt_token'),
       ]);
 
       set((state) => ({
         avatarUri: savedAvatar || state.avatarUri,
         fitProfile: savedFit ? JSON.parse(savedFit) : state.fitProfile,
-        orders: savedOrders ? JSON.parse(savedOrders) : state.orders,
         jwtToken: savedJwt || state.jwtToken,
       }));
 
-      // Sincroniza catálogo e status com o WebService em segundo plano
       get().syncWithBackend();
     } catch (e) {
       console.warn('Erro ao hidratar store Zustand:', e);

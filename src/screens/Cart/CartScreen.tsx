@@ -53,14 +53,8 @@ export const CartScreen: React.FC = () => {
 
   // Etapa do Checkout: 1 = Revisão da Sacola, 2 = Formulário de Entrega e Pagamento
   const [checkoutStep, setCheckoutStep] = useState<1 | 2>(1);
-
-  // Modal de Compra Rápida (Slide PM-11)
   const [quickModalVisible, setQuickModalVisible] = useState(false);
-
-  // Fallback para imagens com erro de carregamento
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
-
-  // Campos do Formulário de Entrega
   const [receiverName, setReceiverName] = useState(userData?.name || '');
   const [zipCode, setZipCode] = useState('');
   const [address, setAddress] = useState('');
@@ -75,7 +69,7 @@ export const CartScreen: React.FC = () => {
     }
   }, [userData?.name]);
 
-  // Máscara e formatação de CEP (XXXXX-XXX)
+  // Aplica máscara de CEP no padrão XXXXX-XXX
   const formatZipCode = (val: string) => {
     const clean = val.replace(/\D/g, '').slice(0, 8);
     if (clean.length > 5) {
@@ -84,13 +78,11 @@ export const CartScreen: React.FC = () => {
     return clean;
   };
 
-  // Erros de Validação do Formulário
   const [receiverNameError, setReceiverNameError] = useState('');
   const [zipCodeError, setZipCodeError] = useState('');
   const [addressError, setAddressError] = useState('');
   const [formSubmitted, setFormSubmitted] = useState(false);
 
-  // Navegação resiliente para catálogo
   const handleGoToCatalog = () => {
     if (navigation.canGoBack()) {
       navigation.goBack();
@@ -106,7 +98,6 @@ export const CartScreen: React.FC = () => {
     }
   };
 
-  // Confirmação de remoção com Alert + Toast conforme Slide PM-11
   const handleConfirmRemove = (productId: string, selectedSize: string, productName: string) => {
     if (Platform.OS === 'web') {
       const ok =
@@ -133,7 +124,7 @@ export const CartScreen: React.FC = () => {
     ]);
   };
 
-  // Preenchimento Automático via GPS Nativo (expo-location)
+  // Obtém coordenadas via GPS e converte em endereço via geocodificação reversa
   const handleFetchGpsLocation = async () => {
     setIsLocatingGps(true);
     try {
@@ -196,7 +187,6 @@ export const CartScreen: React.FC = () => {
     }
   };
 
-  // Funções de Validação
   const validateReceiverName = (val: string) => {
     if (!val.trim()) return 'Informe o nome completo do destinatário.';
     if (val.trim().length < 3) return 'Nome deve ter ao menos 3 caracteres.';
@@ -614,7 +604,6 @@ export const CartScreen: React.FC = () => {
                           style={styles.proceedButton}
                         />
 
-                        {/* Botão Comprar em Modal (Slide PM-11) */}
                         <CustomButton
                           title="Comprar via Modal Rápido"
                           onPress={() => {
@@ -631,7 +620,7 @@ export const CartScreen: React.FC = () => {
                 </View>
               )}
 
-              {/* ETAPA 2: FORMULÁRIO DE ENTREGA E PAGAMENTO COM VALIDAÇÃO + GPS */}
+              {/* Etapa 2: Formulário de entrega e pagamento */}
               {checkoutStep === 2 && (
                 <View style={[styles.checkoutFormCard, cardSurfaceStyle]}>
                   <View style={styles.stepTitleRow}>
@@ -640,7 +629,6 @@ export const CartScreen: React.FC = () => {
                     </AccessibleText>
                   </View>
 
-                  {/* Botão Nativo de GPS (expo-location) */}
                   <TouchableOpacity
                     style={[
                       styles.gpsButton,
@@ -673,7 +661,6 @@ export const CartScreen: React.FC = () => {
                     </View>
                   </TouchableOpacity>
 
-                  {/* Nome do Destinatário */}
                   <CustomInput
                     label="Nome do Destinatário"
                     required
@@ -687,7 +674,6 @@ export const CartScreen: React.FC = () => {
                     isValid={Boolean(receiverName && !validateReceiverName(receiverName))}
                   />
 
-                  {/* CEP */}
                   <CustomInput
                     label="CEP de Entrega"
                     required
@@ -705,7 +691,6 @@ export const CartScreen: React.FC = () => {
                     helperText="Entrega gratuita com rastreamento por SMS e áudio."
                   />
 
-                  {/* Endereço Completo */}
                   <CustomInput
                     label="Endereço e Número"
                     required
@@ -719,7 +704,6 @@ export const CartScreen: React.FC = () => {
                     isValid={Boolean(address && !validateAddress(address))}
                   />
 
-                  {/* Método de Pagamento (Pix, Cartão, Boleto - Slide PM-11) */}
                   <View style={styles.paymentSection}>
                     <AccessibleText
                       size="sm"
@@ -731,7 +715,6 @@ export const CartScreen: React.FC = () => {
                     </AccessibleText>
 
                     <View style={styles.paymentOptions}>
-                      {/* Opção Pix */}
                       <TouchableOpacity
                         style={[
                           styles.paymentOptionCard,
@@ -765,7 +748,6 @@ export const CartScreen: React.FC = () => {
                         </AccessibleText>
                       </TouchableOpacity>
 
-                      {/* Opção Cartão */}
                       <TouchableOpacity
                         style={[
                           styles.paymentOptionCard,
@@ -799,7 +781,6 @@ export const CartScreen: React.FC = () => {
                         </AccessibleText>
                       </TouchableOpacity>
 
-                      {/* Opção Boleto */}
                       <TouchableOpacity
                         style={[
                           styles.paymentOptionCard,
@@ -837,7 +818,6 @@ export const CartScreen: React.FC = () => {
                     </View>
                   </View>
 
-                  {/* Total a pagar */}
                   <View
                     style={[
                       styles.totalConfirmBox,
@@ -855,7 +835,6 @@ export const CartScreen: React.FC = () => {
                     </AccessibleText>
                   </View>
 
-                  {/* Botões de Ação */}
                   <View style={styles.checkoutActions}>
                     <CustomButton
                       title={isFinishing ? 'Processando Pedido...' : 'Finalizar Compra Segura'}
@@ -880,7 +859,6 @@ export const CartScreen: React.FC = () => {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Modal de Compra Rápida conforme atividade prática do Slide PM-11 */}
       <Modal
         visible={quickModalVisible}
         transparent

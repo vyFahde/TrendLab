@@ -3,14 +3,10 @@ import {
   View,
   StyleSheet,
   TouchableOpacity,
-  Image,
   FlatList,
-  Alert,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import * as ImagePicker from 'expo-image-picker';
 import * as Speech from 'expo-speech';
 import { AccessibleText } from '../../components/AccessibleText';
 import { AccessibilityBar } from '../../components/AccessibilityBar';
@@ -24,11 +20,8 @@ import { Product } from '../../types';
 import Colors from '../../theme/colors';
 import {
   Sparkles,
-  Camera,
-  Image as ImageIcon,
   Volume2,
   CheckCircle2,
-  Trash2,
   Ruler,
 } from 'lucide-react-native';
 
@@ -43,9 +36,6 @@ export const FittingRoomScreen: React.FC = () => {
   const { fitProfile, updateFitProfile, products } = useUsuarioStore();
   const { showToast } = useToastStore();
   const { palette, highContrast, darkMode } = useAccessibility();
-
-  // Hook de permissão da câmera conforme Slide PM-12
-  const [cameraStatus, requestCameraPermission] = ImagePicker.useCameraPermissions();
 
   const [heightInput, setHeightInput] = useState(fitProfile.heightCm);
   const [weightInput, setWeightInput] = useState(fitProfile.weightKg);
@@ -87,75 +77,7 @@ export const FittingRoomScreen: React.FC = () => {
     }
   };
 
-  // Função para abrir a Câmera Nativa seguindo exatamente o Slide PM-12
-  const abrirCamera = async () => {
-    try {
-      if (!cameraStatus?.granted) {
-        const resposta = await requestCameraPermission();
-        if (!resposta.granted) {
-          if (Platform.OS !== 'web') {
-            Alert.alert(
-              'Permissão Necessária',
-              'Precisamos de acesso à câmera para capturar sua foto no Provador Virtual.'
-            );
-          }
-          showToast('Permissão da câmera negada.', 'error');
-          return;
-        }
-      }
-
-      const foto = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [4, 3],
-        base64: true,
-        mediaTypes: ['images'],
-        quality: 0.4,
-      });
-
-      if (!foto.canceled && foto.assets && foto.assets[0]) {
-        const asset = foto.assets[0];
-        const uriFinal = asset.base64
-          ? `data:image/jpeg;base64,${asset.base64}`
-          : asset.uri;
-        await updateFitProfile({ photoUri: uriFinal });
-        showToast('Foto capturada com sucesso no Provador Virtual!', 'success');
-      }
-    } catch {
-      showToast('Não foi possível abrir a câmera neste dispositivo.', 'error');
-    }
-  };
-
-  // Função para abrir a Galeria seguindo exatamente o Slide PM-12
-  const abrirGaleria = async () => {
-    try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permissionResult.granted) {
-        showToast('Permissão de acesso à galeria é necessária.', 'error');
-        return;
-      }
-
-      const foto = await ImagePicker.launchImageLibraryAsync({
-        allowsEditing: true,
-        aspect: [4, 3],
-        base64: true,
-        allowsMultipleSelection: false,
-        mediaTypes: ['images'],
-        quality: 0.4,
-      });
-
-      if (!foto.canceled && foto.assets && foto.assets[0]) {
-        const asset = foto.assets[0];
-        const uriFinal = asset.base64
-          ? `data:image/jpeg;base64,${asset.base64}`
-          : asset.uri;
-        await updateFitProfile({ photoUri: uriFinal });
-        showToast('Imagem carregada da galeria com sucesso!', 'success');
-      }
-    } catch {
-      showToast('Não foi possível acessar a galeria.', 'error');
-    }
-  };
-
+  // Filtra o catálogo exibindo apenas as peças disponíveis no tamanho calculado do usuário
   const compatibleProducts = useMemo(() => {
     return products.filter(
       (p) =>
@@ -181,17 +103,16 @@ export const FittingRoomScreen: React.FC = () => {
     <View>
       <View style={styles.header}>
         <AccessibleText size="xs" weight="bold" color={Colors.electricIris} style={styles.badge}>
-          ASSISTENTE ANATÔMICO & CÂMERA NATIVA
+          ASSISTENTE ANATÔMICO DE MEDIDAS
         </AccessibleText>
         <AccessibleText size="2xl" weight="bold" color={Colors.deepSpaceNavy}>
           Provador Virtual
         </AccessibleText>
         <AccessibleText size="sm" color={Colors.charcoalSlate}>
-          Descubra seu tamanho ideal sem esforço e teste combinações com foto.
+          Descubra seu tamanho ideal com base nas suas medidas e preferência de caimento.
         </AccessibleText>
       </View>
 
-      {/* Card de Resultado Recomendado + Leitura de Voz */}
       <View
         style={[
           styles.recommendationBanner,
@@ -275,102 +196,6 @@ export const FittingRoomScreen: React.FC = () => {
         </AccessibleText>
       </View>
 
-      {/* Espelho Virtual com Câmera e Galeria (Slide PM-12) */}
-      <View style={[styles.card, cardSurfaceStyle]}>
-        <View style={styles.cardHeaderRow}>
-          <Camera size={20} color={palette.iconAccent} />
-          <AccessibleText size="base" weight="bold" color={Colors.deepSpaceNavy}>
-            Espelho Virtual (Câmera / Galeria)
-          </AccessibleText>
-        </View>
-        <AccessibleText size="xs" color={Colors.charcoalSlate} style={styles.cardDescription}>
-          Tire uma foto com a câmera ou escolha da galeria para comparar o contraste das cores com seu tom de pele e estilo.
-        </AccessibleText>
-
-        {fitProfile.photoUri ? (
-          <View style={styles.photoPreviewContainer}>
-            <Image
-              source={{ uri: fitProfile.photoUri }}
-              style={styles.photoPreview}
-              resizeMode="cover"
-            />
-            <View style={styles.photoOverlayBadge}>
-              <CheckCircle2 size={14} color={Colors.white} />
-              <AccessibleText size="xs" weight="bold" color={Colors.white}>
-                Tam. Ideal: {fitProfile.recommendedLetterSize} / {fitProfile.recommendedNumericSize}
-              </AccessibleText>
-            </View>
-            <TouchableOpacity
-              style={styles.removePhotoBtn}
-              onPress={() => updateFitProfile({ photoUri: null })}
-              accessibilityRole="button"
-              accessibilityLabel="Remover foto do provador virtual"
-            >
-              <Trash2 size={16} color={Colors.white} />
-              <AccessibleText size="xs" weight="bold" color={Colors.white}>
-                Remover Foto
-              </AccessibleText>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View
-            style={[
-              styles.emptyMirrorBox,
-              {
-                backgroundColor: palette.surfaceSecondary,
-                borderColor: palette.border,
-              },
-            ]}
-          >
-            <Camera size={38} color={palette.iconPrimary} />
-            <AccessibleText size="xs" color={Colors.charcoalSlate} style={styles.emptyMirrorText}>
-              Nenhuma foto capturada ainda
-            </AccessibleText>
-          </View>
-        )}
-
-        <View style={styles.cameraButtonsRow}>
-          <TouchableOpacity
-            style={[
-              styles.cameraBtnPrimary,
-              {
-                backgroundColor: palette.primary,
-                borderWidth: highContrast ? 2 : 0,
-                borderColor: palette.borderStrong,
-              },
-            ]}
-            onPress={abrirCamera}
-            accessibilityRole="button"
-            accessibilityLabel="Tirar foto com a câmera"
-          >
-            <Camera size={18} color={palette.primaryContent} />
-            <AccessibleText size="sm" weight="bold" color={palette.primaryContent}>
-              Usar Câmera
-            </AccessibleText>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.cameraBtnSecondary,
-              {
-                backgroundColor: palette.surfaceSecondary,
-                borderColor: palette.primary,
-                borderWidth: highContrast ? 2 : 1.5,
-              },
-            ]}
-            onPress={abrirGaleria}
-            accessibilityRole="button"
-            accessibilityLabel="Escolher foto da galeria"
-          >
-            <ImageIcon size={18} color={palette.iconAccent} />
-            <AccessibleText size="sm" weight="bold" color={Colors.electricIris}>
-              Abrir Galeria
-            </AccessibleText>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Calculadora de Medidas */}
       <View style={[styles.card, cardSurfaceStyle]}>
         <View style={styles.cardHeaderRow}>
           <Ruler size={20} color={palette.iconAccent} />
@@ -454,7 +279,7 @@ export const FittingRoomScreen: React.FC = () => {
           Peças no Seu Tamanho ({compatibleProducts.length})
         </AccessibleText>
         <AccessibleText size="xs" color={Colors.charcoalSlate}>
-          Listagem otimizada de produtos prontos para o seu perfil
+          Produtos disponíveis no catálogo compatíveis com as suas medidas
         </AccessibleText>
       </View>
     </View>
@@ -555,90 +380,6 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 6,
   },
-  cardDescription: {
-    marginBottom: 12,
-  },
-  photoPreviewContainer: {
-    width: '100%',
-    height: 240,
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 12,
-    backgroundColor: '#E2E8F0',
-    position: 'relative',
-  },
-  photoPreview: {
-    width: '100%',
-    height: '100%',
-  },
-  photoOverlayBadge: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: Colors.successEmerald,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  removePhotoBtn: {
-    position: 'absolute',
-    bottom: 10,
-    right: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: Colors.alertCrimson,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    minHeight: 40,
-  },
-  emptyMirrorBox: {
-    height: 130,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: Colors.inputBorder,
-    backgroundColor: '#F8FAFC',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-    gap: 6,
-  },
-  emptyMirrorText: {
-    marginTop: 4,
-  },
-  cameraButtonsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  cameraBtnPrimary: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: Colors.electricIris,
-    minHeight: 48,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-  },
-  cameraBtnSecondary: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#EEF2FF',
-    borderWidth: 1.5,
-    borderColor: Colors.electricIris,
-    minHeight: 48,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-  },
   inputsGrid: {
     flexDirection: 'row',
     gap: 12,
@@ -664,10 +405,6 @@ const styles = StyleSheet.create({
     borderColor: Colors.cardBorder,
     backgroundColor: Colors.cleanCanvas,
     minHeight: 52,
-  },
-  fitOptionCardActive: {
-    borderColor: Colors.electricIris,
-    backgroundColor: '#EEF2FF',
   },
   fitOptionTextWrap: {
     flex: 1,

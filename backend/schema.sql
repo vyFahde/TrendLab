@@ -1,11 +1,9 @@
 -- ============================================================================
--- TrendLab E-Commerce Acessível — Esquema Relacional SQL (SQLite / Padrão SQL)
--- Referência: Aulas PM-14 (WebService REST) e PM-15 (Strapi + SQLite + JWT)
+-- TrendLab E-Commerce Acessível — Esquema Relacional SQL (SQLite)
 -- ============================================================================
 
 PRAGMA foreign_keys = ON;
 
--- 1. Tabela de Usuários (Autenticação JWT)
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT NOT NULL,
@@ -14,7 +12,6 @@ CREATE TABLE IF NOT EXISTS users (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. Tabela de Produtos do Catálogo
 CREATE TABLE IF NOT EXISTS produtos (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -32,7 +29,6 @@ CREATE TABLE IF NOT EXISTS produtos (
   in_stock INTEGER DEFAULT 1
 );
 
--- 3. Tabela de Pedidos (Relacionada ao e-mail do usuário)
 CREATE TABLE IF NOT EXISTS pedidos (
   id TEXT PRIMARY KEY,
   date TEXT NOT NULL,

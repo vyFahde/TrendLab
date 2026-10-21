@@ -19,7 +19,6 @@ export const useToastStore = create<ToastState>((set) => ({
   type: 'success',
 
   showToast: (message, type = 'success') => {
-    // Dispara também o ToastAndroid nativo conforme Slide PM-11 quando no Android
     if (Platform.OS === 'android') {
       try {
         ToastAndroid.showWithGravity(message, ToastAndroid.SHORT, ToastAndroid.BOTTOM);

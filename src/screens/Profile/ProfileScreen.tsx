@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -13,7 +13,6 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
-import * as Network from 'expo-network';
 import { RootStackParamList, OrderRecord } from '../../types';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AccessibleText } from '../../components/AccessibleText';
@@ -34,7 +33,6 @@ import {
   User,
   Camera,
   Image as ImageIcon,
-  Wifi,
   Package,
   X,
   CheckCircle2,
@@ -70,21 +68,15 @@ export const ProfileScreen: React.FC = () => {
     resetAccessibility,
   } = useAccessibility();
 
-  // Hook de permissão da câmera conforme Slide PM-12
   const [status, requestPermission] = ImagePicker.useCameraPermissions();
-
-  // Estado de Rede / Wi-Fi (expo-network)
-  const networkState = Network.useNetworkState();
-  const [deviceIp, setDeviceIp] = useState<string>('Carregando...');
   const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(null);
 
-  useEffect(() => {
-    Network.getIpAddressAsync()
-      .then((ip) => setDeviceIp(ip || 'Indisponível'))
-      .catch(() => setDeviceIp('Indisponível'));
-  }, [networkState.type, networkState.isConnected]);
+  const activeEmail = (usuario || user?.email || '').trim().toLowerCase();
+  const userOrders = orders.filter(
+    (ord) => !ord.userEmail || ord.userEmail.toLowerCase() === activeEmail
+  );
 
-  // Função para abrir Câmera conforme Slide PM-12
+  // Solicita permissão da câmera e atualiza a foto de perfil em Base64
   const abrirCameraPerfil = async () => {
     try {
       if (!status?.granted) {
@@ -115,7 +107,7 @@ export const ProfileScreen: React.FC = () => {
     }
   };
 
-  // Função para abrir Galeria conforme Slide PM-12
+  // Solicita permissão da galeria e seleciona uma imagem para o perfil
   const abrirGaleriaPerfil = async () => {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -182,15 +174,6 @@ export const ProfileScreen: React.FC = () => {
     }
   };
 
-  const connectionLabel =
-    networkState.type === Network.NetworkStateType.WIFI
-      ? 'Wi-Fi Conectado'
-      : networkState.type === Network.NetworkStateType.CELLULAR
-      ? 'Dados Móveis (4G/5G)'
-      : networkState.isConnected !== false
-      ? 'Conectado à Internet'
-      : 'Sem Conexão (Offline)';
-
   const cardSurfaceStyle = {
     backgroundColor: palette.surface,
     borderColor: palette.border,
@@ -204,7 +187,6 @@ export const ProfileScreen: React.FC = () => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Card do Usuário com Câmera e Galeria (Slide PM-12 + Zustand PM-13) */}
         <View style={[styles.userCard, cardSurfaceStyle]}>
           <View style={styles.userTopRow}>
             {avatarUri ? (
@@ -275,60 +257,22 @@ export const ProfileScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Diagnóstico Nativo de Rede / Wi-Fi (expo-network) */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Wifi size={20} color={palette.iconAccent} />
-            <AccessibleText size="base" weight="bold" color={Colors.deepSpaceNavy}>
-              Status de Rede e Conectividade
-            </AccessibleText>
-          </View>
-
-          <View style={[styles.networkCard, cardSurfaceStyle]}>
-            <View style={styles.networkRow}>
-              <AccessibleText size="xs" color={Colors.charcoalSlate}>
-                Tipo de Conexão:
-              </AccessibleText>
-              <AccessibleText
-                size="xs"
-                weight="bold"
-                color={
-                  networkState.isConnected !== false
-                    ? Colors.successEmerald
-                    : Colors.alertCrimson
-                }
-              >
-                ✓ {connectionLabel}
-              </AccessibleText>
-            </View>
-            <View style={styles.networkRow}>
-              <AccessibleText size="xs" color={Colors.charcoalSlate}>
-                Endereço IP do Dispositivo:
-              </AccessibleText>
-              <AccessibleText size="xs" weight="semiBold" color={Colors.highInkSlate}>
-                {deviceIp}
-              </AccessibleText>
-            </View>
-          </View>
-        </View>
-
-        {/* Histórico de Pedidos */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Package size={20} color={palette.iconAccent} />
             <AccessibleText size="base" weight="bold" color={Colors.deepSpaceNavy}>
-              Histórico de Pedidos ({orders.length})
+              Histórico de Pedidos ({userOrders.length})
             </AccessibleText>
           </View>
 
-          {orders.length === 0 ? (
+          {userOrders.length === 0 ? (
             <View style={[styles.emptyOrdersCard, cardSurfaceStyle]}>
               <AccessibleText size="xs" color={Colors.charcoalSlate}>
-                Você ainda não finalizou pedidos nesta sessão. Seus pedidos concluídos aparecerão aqui.
+                Você ainda não finalizou pedidos nesta conta. Seus pedidos concluídos aparecerão aqui.
               </AccessibleText>
             </View>
           ) : (
-            orders.map((ord) => (
+            userOrders.map((ord) => (
               <TouchableOpacity
                 key={ord.id}
                 style={[styles.orderCard, cardSurfaceStyle]}
@@ -494,7 +438,6 @@ export const ProfileScreen: React.FC = () => {
             />
           </View>
 
-          {/* Botão de Restaurar Padrões */}
           <TouchableOpacity
             style={styles.resetButton}
             onPress={() => {
@@ -510,7 +453,6 @@ export const ProfileScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Botão Sair */}
         <View style={styles.logoutSection}>
           <CustomButton
             title="Encerrar Sessão (Logout)"
@@ -698,19 +640,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginBottom: 10,
-  },
-  networkCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    gap: 8,
-  },
-  networkRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
   },
   emptyOrdersCard: {
     backgroundColor: Colors.white,

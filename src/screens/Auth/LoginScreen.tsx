@@ -11,7 +11,6 @@ import { CustomInput } from '../../components/CustomInput';
 import { CustomButton } from '../../components/CustomButton';
 import { useAuth } from '../../context/AuthContext';
 import { useAccessibility } from '../../context/AccessibilityContext';
-import { useUsuarioStore } from '../../store/usuario-store';
 import { useToastStore } from '../../store/useToastStore';
 import Colors from '../../theme/colors';
 import { ArrowRight, AlertTriangle } from 'lucide-react-native';
@@ -35,7 +34,6 @@ const loginValidationSchema = Yup.object().shape({
 export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const { loginUser } = useAuth();
   const { palette, highContrast } = useAccessibility();
-  const { setUsuario } = useUsuarioStore();
   const { showToast } = useToastStore();
   const [loginError, setLoginError] = useState<string | null>(null);
 
@@ -45,7 +43,6 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
       const cleanEmail = values.email.trim();
       const success = await loginUser(cleanEmail, values.senha);
       if (success) {
-        setUsuario(cleanEmail);
         showToast('Login realizado com sucesso!', 'success');
         navigation.replace('MainTabs');
       } else {

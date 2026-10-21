@@ -261,15 +261,14 @@ export const HomeScreen: React.FC = () => {
             <ArrowRight size={18} color={palette.iconPrimary} />
           </View>
           <AccessibleText size="base" weight="bold" color={palette.heading}>
-            Recomendação inteligente de caimento + Câmera
+            Recomendação inteligente de caimento
           </AccessibleText>
           <AccessibleText size="xs" color={palette.textSecondary} style={styles.bannerText}>
-            Toque aqui para calcular seu tamanho ideal ou testar cores com sua câmera.
+            Toque aqui para calcular seu tamanho ideal em todas as peças da loja.
           </AccessibleText>
         </TouchableOpacity>
       )}
 
-      {/* Filtro Horizontal por Categoria */}
       <View style={styles.categoriesSection}>
         <AccessibleText size="sm" weight="bold" color={palette.heading} style={styles.sectionTitle}>
           Filtrar por Categoria:
@@ -311,7 +310,6 @@ export const HomeScreen: React.FC = () => {
         </ScrollView>
       </View>
 
-      {/* Cabeçalho da Lista FlatList */}
       <View style={styles.productsHeader}>
         <View>
           <AccessibleText size="base" weight="bold" color={palette.heading}>
@@ -360,7 +358,6 @@ export const HomeScreen: React.FC = () => {
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]}>
       <AccessibilityBar />
 
-      {/* Listagem Otimizada com FlatList (Lazy Loading - Slide PM-10) */}
       <FlatList
         data={filteredProducts}
         keyExtractor={(item: Product) => item.id}
@@ -380,7 +377,6 @@ export const HomeScreen: React.FC = () => {
         initialNumToRender={4}
       />
 
-      {/* Modal de Filtros por Tamanho e Ordenação (Slide PM-11) */}
       <Modal
         visible={filterModalVisible}
         transparent

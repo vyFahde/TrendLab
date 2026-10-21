@@ -437,15 +437,14 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
               style={styles.openFittingRoomLink}
               onPress={() => rootNavigation.navigate('FittingRoomTab')}
               accessibilityRole="button"
-              accessibilityLabel="Abrir Provador Virtual para ajustar medidas ou usar câmera"
+              accessibilityLabel="Abrir Provador Virtual para ajustar medidas"
             >
               <AccessibleText size="xs" weight="bold" color={palette.accent}>
-                Personalizar medidas ou usar câmera no Provador Virtual →
+                Personalizar medidas no Provador Virtual →
               </AccessibleText>
             </TouchableOpacity>
           </View>
 
-          {/* Seleção de Tamanho */}
           <View style={styles.selectionSection}>
             <AccessibleText size="sm" weight="bold" color={palette.heading} style={styles.sectionLabel}>
               Selecione o Tamanho:

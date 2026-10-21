@@ -41,6 +41,7 @@ export interface OrderRecord {
   receiverName: string;
   itemsCount: number;
   itemsSummary: string[];
+  userEmail?: string;
 }
 
 // Stack interno da aba Início (mantém a Bottom Tab visível ao abrir os Detalhes)

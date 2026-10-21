@@ -1,19 +1,18 @@
 /**
  * TrendLab RESTful WebService com Banco de Dados Relacional SQL (SQLite Nativo - node:sqlite)
- * Compatível com o padrão Strapi / REST das aulas PM-14 e PM-15
  * Porta padrão: 1337 (http://localhost:1337/api)
  *
- * Rotas implementadas com queries SQL reais (SELECT, INSERT, UPDATE, DELETE) + Autenticação JWT:
- * - GET    /api/status                  -> Status do servidor e contagem SQL (SELECT COUNT(*))
- * - POST   /api/auth/local              -> Login SQL (SELECT * FROM users WHERE email = ?)
- * - POST   /api/auth/local/register     -> Cadastro SQL (INSERT INTO users ...)
- * - GET    /api/produtos                -> Lista catálogo SQL (SELECT * FROM produtos ...)
- * - GET    /api/produtos/:id            -> Busca produto por ID (SELECT * FROM produtos WHERE id = ?)
- * - POST   /api/produtos                -> Cadastra novo produto (INSERT INTO produtos ...)
- * - GET    /api/pedidos                 -> Lista pedidos do usuário (SELECT * FROM pedidos WHERE user_email = ?)
- * - POST   /api/pedidos                 -> Registra novo pedido no banco SQL (INSERT INTO pedidos ...)
- * - PUT    /api/pedidos/:id             -> Atualiza pedido existente (UPDATE pedidos SET ... WHERE id = ?)
- * - DELETE /api/pedidos/:id             -> Cancela/remove um pedido (DELETE FROM pedidos WHERE id = ?)
+ * Rotas com queries SQL (SELECT, INSERT, UPDATE, DELETE) e Autenticação JWT:
+ * - GET    /api/status                  -> Status do servidor e contagem de registros
+ * - POST   /api/auth/local              -> Autenticação de usuário (retorna JWT)
+ * - POST   /api/auth/local/register     -> Cadastro de novo usuário (retorna JWT)
+ * - GET    /api/produtos                -> Lista catálogo de produtos
+ * - GET    /api/produtos/:id            -> Busca produto por ID
+ * - POST   /api/produtos                -> Cadastra novo produto
+ * - GET    /api/pedidos                 -> Lista pedidos filtrados por e-mail do usuário
+ * - POST   /api/pedidos                 -> Registra novo pedido no banco SQL
+ * - PUT    /api/pedidos/:id             -> Atualiza pedido existente
+ * - DELETE /api/pedidos/:id             -> Cancela e remove um pedido
  */
 
 const http = require('http');
@@ -26,9 +25,8 @@ const PORT = process.env.PORT || 1337;
 const SQLITE_PATH = path.join(__dirname, 'trendlab.sqlite');
 const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
 const SEED_JSON_PATH = path.join(__dirname, 'db.json');
-const JWT_SECRET = 'trendlab-secret-key-pm14';
+const JWT_SECRET = 'trendlab-secret-key';
 
-// Inicializa conexão com o banco SQLite relacional
 const sqliteDb = new DatabaseSync(SQLITE_PATH);
 
 function initSqlDatabase() {
@@ -147,7 +145,7 @@ function mapOrderRow(row) {
   };
 }
 
-// Geração de Token JWT real em 3 partes (Header.Payload.Signature) conforme Slide PM-14
+// Gera Token JWT assinado com HMAC-SHA256 (Header.Payload.Signature)
 function generateJwt(user) {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
   const payload = Buffer.from(
@@ -224,7 +222,7 @@ const server = http.createServer(async (req, res) => {
   const parsedUrl = new URL(req.url, `http://localhost:${PORT}`);
   const pathname = parsedUrl.pathname.replace(/\/+$/, '');
 
-  // 1. Healthcheck / Status (SELECT COUNT(*) nas tabelas SQL)
+  // GET /api/status
   if (req.method === 'GET' && (pathname === '/api/status' || pathname === '/api')) {
     const usersCount = sqliteDb.prepare('SELECT COUNT(*) AS c FROM users').get().c;
     const prodCount = sqliteDb.prepare('SELECT COUNT(*) AS c FROM produtos').get().c;
@@ -248,7 +246,7 @@ const server = http.createServer(async (req, res) => {
     );
   }
 
-  // 2. Autenticação JWT - Login (Slide PM-15: POST /api/auth/local)
+  // POST /api/auth/local
   if (req.method === 'POST' && pathname === '/api/auth/local') {
     const body = await parseBody(req);
     const identifier = (body.identifier || body.email || '').trim().toLowerCase();
@@ -292,7 +290,7 @@ const server = http.createServer(async (req, res) => {
     );
   }
 
-  // 3. Autenticação JWT - Cadastro (Slide PM-15: POST /api/auth/local/register)
+  // POST /api/auth/local/register
   if (req.method === 'POST' && pathname === '/api/auth/local/register') {
     const body = await parseBody(req);
     const email = (body.email || '').trim().toLowerCase();

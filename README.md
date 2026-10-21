@@ -44,10 +44,10 @@ Presente no topo das telas principais, permitindo ajustar a qualquer momento:
 - **Login (`src/screens/Auth/LoginScreen.tsx`):** Validação com Formik + Yup, autenticação no Back-end SQL com retorno de **Token JWT** e sincronização global na store **Zustand** (`useUsuarioStore`).
 - **Cadastro (`src/screens/Auth/RegisterScreen.tsx`):** Criação de conta persistida na tabela SQL `users` (`POST /api/auth/local/register`) com login automático.
 
-### Catálogo e Descoberta (`FlatList` - Slide PM-10)
+### Catálogo e Descoberta (`FlatList`)
 - **Catálogo Inicial (`src/screens/Home/HomeScreen.tsx`):**
   - **Listagem Virtualizada (`FlatList`):** Renderização otimizada do catálogo principal e da lista horizontal de categorias, com suporte a *Pull-to-Refresh* (`onRefresh`) conectado ao `GET /api/produtos`.
-  - **Filtros Combinados e Modais (`Modal` - Slide PM-11):** Filtro por categoria, tamanho e ordenação de preço (`Menor Preço` / `Maior Preço`), além de busca por texto e simulação de busca por voz.
+  - **Filtros Combinados e Modais (`Modal`):** Filtro por categoria, tamanho e ordenação de preço (`Menor Preço` / `Maior Preço`), além de busca por texto e simulação de busca por voz.
   - **Descrições Acessíveis (`+2px` sem emojis):** Textos de composição do tecido higienizados sem emojis e com fonte ampliada para leitura fluida em leitores de tela.
 
 ### Detalhes da Peça, Voz Nativa e Super Zoom com Lupa Móvel
@@ -56,10 +56,9 @@ Presente no topo das telas principais, permitindo ajustar a qualquer momento:
   - **Audiodescrição Completa (`expo-speech`):** Leitura em voz alta em português (`pt-BR`) do nome, categoria, preço, tamanho recomendado pelo provador, composição do tecido e diferenciais de acessibilidade.
   - **Descrições Ampliadas (`+2px`):** Textos de tecido e lista de diferenciais sem emojis e com tipografia ampliada.
 
-### Provador Virtual Interativo & Câmera Nativa (Slide PM-12)
+### Provador Virtual Interativo
 - **Provador Virtual (`src/screens/FittingRoom/FittingRoomScreen.tsx`):**
-  - **Calculadora Anatômica (Zustand):** Calcula automaticamente o tamanho ideal em letras (`P` a `XG`) e numérico (`38` a `46`) com base em altura, peso e preferência de caimento (`justo`, `regular` ou `solto`).
-  - **Captura com Câmera e Galeria (`expo-image-picker`):** Captura foto pela câmera nativa (`launchCameraAsync`) ou seleciona da galeria (`launchImageLibraryAsync`) com conversão Base64 e persistência no perfil.
+  - **Calculadora Anatômica (Zustand):** Calcula automaticamente o tamanho ideal em letras (`P` a `XG`) e numérico (`38` a `46`) com base em altura, peso e preferência de caimento (`justo`, `regular` ou `solto`), destacando o tamanho recomendado em todas as peças do catálogo.
 
 ### Sacola, Localização GPS e Checkout Integrado ao Banco SQL
 - **Sacola & Checkout (`src/screens/Cart/CartScreen.tsx`):**
@@ -67,17 +66,16 @@ Presente no topo das telas principais, permitindo ajustar a qualquer momento:
   - **Registro de Pedido no Banco SQL (`POST /api/pedidos`):** Ao finalizar a compra (Pix, Cartão ou Boleto), o pedido é gravado na tabela SQL `pedidos` autenticado com o cabeçalho `Authorization: Bearer <jwt>`.
 - **Pedido Confirmado (`src/screens/Cart/OrderSuccessScreen.tsx`):** Tela de recibo com resumo da compra.
 
-### Minha Conta, Diagnóstico de Rede Wi-Fi e Gestão de Pedidos
+### Minha Conta e Gestão de Pedidos
 - **Minha Conta (`src/screens/Profile/ProfileScreen.tsx`):**
-  - **Foto de Perfil com Câmera / Galeria (`expo-image-picker`):** Atualização da foto do usuário persistida globalmente.
-  - **Diagnóstico de Rede e Wi-Fi (`expo-network`):** Monitoramento em tempo real do tipo de conexão ativa (`WIFI` / `CELLULAR`), status de internet e endereço IP local do aparelho (`getIpAddressAsync`).
-  - **Histórico e Cancelamento de Pedidos (`GET` e `DELETE /api/pedidos/:id`):** Consulta de pedidos realizados com modal de detalhes e botão para cancelar/excluir o pedido diretamente no banco SQLite.
+  - **Foto de Perfil com Câmera / Galeria (`expo-image-picker`):** Captura foto pela câmera nativa (`launchCameraAsync`) ou seleciona da galeria (`launchImageLibraryAsync`) com conversão Base64 e persistência global no perfil.
+  - **Histórico e Cancelamento de Pedidos (`GET` e `DELETE /api/pedidos/:id`):** Consulta de pedidos realizados exclusivamente pelo usuário autenticado, com modal de detalhes e botão para cancelar/excluir o pedido diretamente no banco SQLite.
 
 ---
 
 ## 🗄️ 4. Back-end RESTful (Padrão Strapi) + Banco de Dados SQL (SQLite)
 
-Seguindo os conteúdos das aulas **PM-14 (WebService REST)** e **PM-15 (Strapi + SQLite + JWT)**, o projeto inclui um servidor Node.js na porta `1337` (`backend/server.js`) conectado ao banco de dados relacional SQL **`backend/trendlab.sqlite`** (definido em `backend/schema.sql`):
+O projeto inclui um servidor Node.js na porta `1337` (`backend/server.js`) conectado ao banco de dados relacional SQL **`backend/trendlab.sqlite`** (definido em `backend/schema.sql`):
 
 | Método | Rota HTTP | Query SQL Executada no SQLite | Descrição |
 | :--- | :--- | :--- | :--- |
@@ -137,4 +135,4 @@ npx expo start
 
 ### Credenciais de Teste Rápido:
 - **E-mail:** `teresa.tavares@trendlab.com` | **Senha:** `123456`
-- **E-mail (Padrão Aula Strapi PM-15):** `teste@teste.com` | **Senha:** `Teste123456`
+- **E-mail:** `teste@teste.com` | **Senha:** `Teste123456`
