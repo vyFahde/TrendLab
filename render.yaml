@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: trendlab-api
+    runtime: node
+    plan: starter
+    buildCommand: node --check backend/auth.js && node --check backend/server.js
+    startCommand: npm run backend
+    healthCheckPath: /api/status
+    disk:
+      name: trendlab-sqlite
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "24.22.3"
+      - key: DATABASE_PATH
+        value: /var/data/trendlab.sqlite
+      - key: JWT_SECRET
+        generateValue: true

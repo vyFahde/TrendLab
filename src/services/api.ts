@@ -6,7 +6,7 @@ import { mockProducts } from '../data/mockProducts';
 // Detecta automaticamente o IP da máquina na rede local quando executado no dispositivo móvel via Expo Go
 function resolveDefaultBaseUrl(): string {
   if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL;
+    return process.env.EXPO_PUBLIC_API_URL.trim().replace(/\/+$/, '');
   }
   if (Platform.OS !== 'web') {
     const scriptURL: string | undefined = NativeModules?.SourceCode?.scriptURL;
@@ -44,39 +44,6 @@ export const sanitizeProductDescriptions = (product: Product): Product => ({
   bulletPoints: (product.bulletPoints || []).map((bp) => stripEmojis(bp)),
 });
 
-// Gera um token JWT em 3 partes (Header.Payload.Signature) para sessões iniciadas em modo offline
-export const createClientSideJwt = (email: string, name: string): string => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-  const encodeBase64Url = (obj: Record<string, unknown>) => {
-    const str = encodeURIComponent(JSON.stringify(obj)).replace(
-      /%([0-9A-F]{2})/g,
-      (_, p1) => String.fromCharCode(parseInt(p1, 16))
-    );
-    let output = '';
-    for (let i = 0; i < str.length; i += 3) {
-      const b1 = str.charCodeAt(i);
-      const b2 = i + 1 < str.length ? str.charCodeAt(i + 1) : 0;
-      const b3 = i + 2 < str.length ? str.charCodeAt(i + 2) : 0;
-      const triplet = (b1 << 16) | (b2 << 8) | b3;
-      output += chars[(triplet >> 18) & 0x3f];
-      output += chars[(triplet >> 12) & 0x3f];
-      if (i + 1 < str.length) output += chars[(triplet >> 6) & 0x3f];
-      if (i + 2 < str.length) output += chars[triplet & 0x3f];
-    }
-    return output;
-  };
-
-  const header = encodeBase64Url({ alg: 'HS256', typ: 'JWT' });
-  const payload = encodeBase64Url({
-    sub: email.toLowerCase(),
-    name,
-    email: email.toLowerCase(),
-    iat: Math.floor(Date.now() / 1000),
-  });
-  const signature = 'TrendLabHMACSHA256Signature';
-  return `${header}.${payload}.${signature}`;
-};
-
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
@@ -95,6 +62,40 @@ async function fetchWithTimeout(
   }
 }
 
+interface AuthSession {
+  jwt: string;
+  expiresAt: number;
+  user: { username: string; email: string };
+}
+
+async function authenticate(route: string, credentials: Record<string, string>): Promise<Response> {
+  if (!__DEV__ && !currentBaseUrl.startsWith('https://')) {
+    throw new Error('Configure uma API HTTPS para acessar o TrendLab.');
+  }
+
+  try {
+    return await fetchWithTimeout(`${currentBaseUrl}/auth/local${route}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(credentials),
+    }, 8000);
+  } catch {
+    throw new Error('Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.');
+  }
+}
+
+async function readSession(response: Response): Promise<AuthSession> {
+  const session = await response.json();
+  if (
+    typeof session?.jwt !== 'string' || !session.jwt ||
+    !Number.isFinite(session.expiresAt) || session.expiresAt <= Date.now() ||
+    typeof session.user?.username !== 'string' || typeof session.user?.email !== 'string'
+  ) {
+    throw new Error('O servidor retornou uma sessão inválida.');
+  }
+  return session;
+}
+
 export interface ApiStatusInfo {
   online: boolean;
   mode: 'local-strapi' | 'cloud-rest';
@@ -107,20 +108,12 @@ export const api = {
   getBaseUrl: () => currentBaseUrl,
 
   initBaseUrl: async (): Promise<string> => {
+    if (!__DEV__ || process.env.EXPO_PUBLIC_API_URL) return currentBaseUrl;
     try {
       const saved = await AsyncStorage.getItem(STORAGE_API_URL_KEY);
       if (saved && saved.trim()) {
         currentBaseUrl = saved.trim().replace(/\/+$/, '');
       }
-    } catch {}
-    return currentBaseUrl;
-  },
-
-  setBaseUrl: async (newUrl: string): Promise<string> => {
-    const clean = (newUrl || DEFAULT_BASE_URL).trim().replace(/\/+$/, '');
-    currentBaseUrl = clean;
-    try {
-      await AsyncStorage.setItem(STORAGE_API_URL_KEY, clean);
     } catch {}
     return currentBaseUrl;
   },
@@ -165,137 +158,22 @@ export const api = {
     }
   },
 
-  login: async (
-    identifier: string,
-    password?: string
-  ): Promise<{
-    ok: boolean;
-    jwt: string;
-    user: { id: number | string; username: string; email: string };
-    source: 'local-strapi' | 'cloud-rest';
-  } | null> => {
-    const cleanEmail = identifier.trim().toLowerCase();
-
-    try {
-      const res = await fetchWithTimeout(`${currentBaseUrl}/auth/local`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: cleanEmail, password: password || '123456' }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.jwt && data.user) {
-          return {
-            ok: true,
-            jwt: data.jwt,
-            user: {
-              id: data.user.id,
-              username: data.user.username || data.user.name || cleanEmail.split('@')[0],
-              email: data.user.email || cleanEmail,
-            },
-            source: 'local-strapi',
-          };
-        }
-      } else if (res.status === 400) {
-        return null;
-      }
-    } catch {}
-
-    // Fallback para contas locais caso o servidor back-end esteja inacessível
-    const defaultAccounts: Record<string, { name: string; password?: string }> = {
-      'teresa.tavares@trendlab.com': { name: 'Teresa Tavares', password: '123456' },
-      'gabriel.gomes@trendlab.com': { name: 'Gabriel Gomes', password: '123456' },
-      'admin@trendlab.com': { name: 'Administrador TrendLab', password: '123456' },
-      'teste@teste.com': { name: 'Aluno Teste', password: 'Teste123456' },
-    };
-
-    if (defaultAccounts[cleanEmail]) {
-      const acc = defaultAccounts[cleanEmail];
-      if (!password || acc.password === password) {
-        const jwt = createClientSideJwt(cleanEmail, acc.name);
-        return {
-          ok: true,
-          jwt,
-          user: { id: cleanEmail, username: acc.name, email: cleanEmail },
-          source: 'cloud-rest',
-        };
-      }
-      return null;
-    }
-
-    try {
-      const savedAccountStr = await AsyncStorage.getItem(`@trendlab:account:${cleanEmail}`);
-      if (savedAccountStr) {
-        const savedAccount = JSON.parse(savedAccountStr);
-        if (!password || savedAccount.password === password) {
-          const jwt = createClientSideJwt(savedAccount.email, savedAccount.name);
-          return {
-            ok: true,
-            jwt,
-            user: {
-              id: savedAccount.email,
-              username: savedAccount.name,
-              email: savedAccount.email,
-            },
-            source: 'cloud-rest',
-          };
-        }
-      }
-    } catch {}
-
-    return null;
+  login: async (identifier: string, password: string): Promise<AuthSession | null> => {
+    const response = await authenticate('', { identifier: identifier.trim().toLowerCase(), password });
+    if (response.status === 400 || response.status === 401) return null;
+    if (!response.ok) throw new Error('Não foi possível realizar o login. Tente novamente.');
+    return readSession(response);
   },
 
-  register: async (
-    username: string,
-    email: string,
-    password?: string
-  ): Promise<{
-    jwt: string;
-    user: { id: number | string; username: string; email: string };
-    source: 'local-strapi' | 'cloud-rest';
-  }> => {
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanName = username.trim();
-
-    try {
-      const res = await fetchWithTimeout(`${currentBaseUrl}/auth/local/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: cleanName,
-          email: cleanEmail,
-          password: password || '123456',
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.jwt && data.user) {
-          return {
-            jwt: data.jwt,
-            user: data.user,
-            source: 'local-strapi',
-          };
-        }
-      }
-    } catch {
-      try {
-        await fetchWithTimeout(`${CLOUD_REST_FALLBACK_URL}/users`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: cleanName, email: cleanEmail }),
-        });
-      } catch {}
-    }
-
-    const jwt = createClientSideJwt(cleanEmail, cleanName);
-    return {
-      jwt,
-      user: { id: Date.now(), username: cleanName, email: cleanEmail },
-      source: 'cloud-rest',
-    };
+  register: async (username: string, email: string, password: string): Promise<AuthSession> => {
+    const response = await authenticate('/register', {
+      username: username.trim(),
+      email: email.trim().toLowerCase(),
+      password,
+    });
+    if (response.status === 409) throw new Error('Já existe uma conta com este e-mail.');
+    if (!response.ok) throw new Error('Não foi possível concluir o cadastro. Verifique os dados e tente novamente.');
+    return readSession(response);
   },
 
   getProducts: async (
@@ -349,27 +227,11 @@ export const api = {
     };
   },
 
-  getOrders: async (
-    userEmail?: string | null,
-    jwt?: string | null
-  ): Promise<{ orders: OrderRecord[]; source: 'local-strapi' | 'cloud-rest' } | null> => {
-    const cleanEmail = userEmail?.trim().toLowerCase();
-    if (!cleanEmail) {
-      return { orders: [], source: 'local-strapi' };
-    }
-
+  getOrders: async (jwt: string): Promise<{ orders: OrderRecord[] } | null> => {
     try {
-      const query = `?filters[usuario]=${encodeURIComponent(cleanEmail)}`;
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      if (jwt) {
-        headers.Authorization = `Bearer ${jwt}`;
-      }
-
-      const res = await fetchWithTimeout(`${currentBaseUrl}/pedidos${query}`, {
+      const res = await fetchWithTimeout(`${currentBaseUrl}/pedidos`, {
         method: 'GET',
-        headers,
+        headers: { Authorization: `Bearer ${jwt}` },
       });
 
       if (res.ok) {
@@ -379,108 +241,32 @@ export const api = {
           : Array.isArray(json.data)
           ? json.data
           : [];
-        const userOrders = list.filter(
-          (o) => !o.userEmail || o.userEmail.toLowerCase() === cleanEmail
-        );
-        return { orders: userOrders, source: 'local-strapi' };
+        return { orders: list };
       }
     } catch {}
     return null;
   },
 
-  createOrder: async (
-    order: OrderRecord,
-    userEmail?: string | null,
-    jwt?: string | null
-  ): Promise<{
-    synced: boolean;
-    statusCode: number;
-    source: 'local-strapi' | 'cloud-rest';
-  }> => {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (jwt) {
-      headers.Authorization = `Bearer ${jwt}`;
-    }
+  createOrder: async (order: OrderRecord, jwt: string): Promise<void> => {
+    const response = await fetchWithTimeout(`${currentBaseUrl}/pedidos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` },
+      body: JSON.stringify({ data: order }),
+    });
 
-    try {
-      const res = await fetchWithTimeout(`${currentBaseUrl}/pedidos`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          data: {
-            ...order,
-            userEmail: userEmail || 'teresa.tavares@trendlab.com',
-          },
-        }),
-      });
-
-      if (res.ok) {
-        return {
-          synced: true,
-          statusCode: res.status,
-          source: 'local-strapi',
-        };
-      }
-    } catch {}
-
-    try {
-      const cloudRes = await fetchWithTimeout(`${CLOUD_REST_FALLBACK_URL}/posts`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          data: {
-            ...order,
-            userEmail: userEmail || 'teresa.tavares@trendlab.com',
-          },
-        }),
-      });
-      return {
-        synced: cloudRes.ok,
-        statusCode: cloudRes.status || 201,
-        source: 'cloud-rest',
-      };
-    } catch {
-      return {
-        synced: false,
-        statusCode: 201,
-        source: 'cloud-rest',
-      };
+    if (!response.ok) {
+      throw new Error('O servidor não confirmou o pedido.');
     }
   },
 
-  deleteOrder: async (
-    orderId: string,
-    jwt?: string | null
-  ): Promise<{ deleted: boolean; statusCode: number }> => {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (jwt) {
-      headers.Authorization = `Bearer ${jwt}`;
-    }
+  deleteOrder: async (orderId: string, jwt: string): Promise<void> => {
+    const response = await fetchWithTimeout(`${currentBaseUrl}/pedidos/${encodeURIComponent(orderId)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${jwt}` },
+    });
 
-    try {
-      const res = await fetchWithTimeout(
-        `${currentBaseUrl}/pedidos/${encodeURIComponent(orderId)}`,
-        {
-          method: 'DELETE',
-          headers,
-        }
-      );
-      if (res.ok) {
-        return { deleted: true, statusCode: res.status };
-      }
-    } catch {
-      try {
-        await fetchWithTimeout(`${CLOUD_REST_FALLBACK_URL}/posts/1`, {
-          method: 'DELETE',
-          headers,
-        });
-      } catch {}
+    if (!response.ok) {
+      throw new Error('O servidor não confirmou o cancelamento.');
     }
-
-    return { deleted: true, statusCode: 200 };
   },
 };

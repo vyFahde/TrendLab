@@ -44,7 +44,6 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
       const success = await loginUser(cleanEmail, values.senha);
       if (success) {
         showToast('Login realizado com sucesso!', 'success');
-        navigation.replace('MainTabs');
       } else {
         const errorMsg =
           'E-mail não cadastrado ou senha incorreta. Verifique suas credenciais ou crie uma nova conta.';
@@ -53,8 +52,8 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
           Alert.alert('Falha no Login', errorMsg);
         }
       }
-    } catch (err) {
-      const errorMsg = 'Não foi possível realizar o login. Tente novamente.';
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Não foi possível realizar o login.';
       setLoginError(errorMsg);
       if (Platform.OS !== 'web') {
         Alert.alert('Erro', errorMsg);

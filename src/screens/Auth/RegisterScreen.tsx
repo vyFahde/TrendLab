@@ -6,7 +6,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
-  Alert,
   TouchableWithoutFeedback,
   Keyboard,
 } from 'react-native';
@@ -20,6 +19,7 @@ import { AccessibilityBar } from '../../components/AccessibilityBar';
 import { CustomInput } from '../../components/CustomInput';
 import { CustomButton } from '../../components/CustomButton';
 import { useAuth } from '../../context/AuthContext';
+import { useToastStore } from '../../store/useToastStore';
 import { useAccessibility } from '../../context/AccessibilityContext';
 import Colors from '../../theme/colors';
 import { ArrowLeft, UserPlus } from 'lucide-react-native';
@@ -37,6 +37,7 @@ const registerValidationSchema = Yup.object().shape({
     .required('O e-mail é obrigatório.'),
   senha: Yup.string()
     .min(6, 'A senha deve conter ao menos 6 caracteres.')
+    .max(256, 'A senha deve conter até 256 caracteres.')
     .required('Defina uma senha segura.'),
   confirmarSenha: Yup.string()
     .oneOf([Yup.ref('senha')], 'As senhas digitadas não coincidem.')
@@ -45,6 +46,7 @@ const registerValidationSchema = Yup.object().shape({
 
 export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const { registerUser } = useAuth();
+  const showToast = useToastStore((state) => state.showToast);
   const { palette, highContrast } = useAccessibility();
 
   const handleRegisterSubmit = async (values: {
@@ -54,9 +56,8 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   }) => {
     try {
       await registerUser(values.nome.trim(), values.email.trim(), values.senha);
-      navigation.replace('MainTabs');
-    } catch (err) {
-      Alert.alert('Erro', 'Não foi possível salvar o cadastro.');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível salvar o cadastro.', 'error');
     }
   };
 

@@ -225,19 +225,25 @@ export const CartScreen: React.FC = () => {
       );
 
       setTimeout(async () => {
-        await addOrder({
-          id: orderId,
-          date: new Date().toLocaleDateString('pt-BR'),
-          total: orderTotal,
-          paymentMethod: chosenPayment,
-          address: address.trim(),
-          zipCode: zipCode || '57051-190',
-          receiverName: receiverName.trim(),
-          itemsCount: totalItems,
-          itemsSummary,
-        });
+        try {
+          await addOrder({
+            id: orderId,
+            date: new Date().toLocaleDateString('pt-BR'),
+            total: orderTotal,
+            paymentMethod: chosenPayment,
+            address: address.trim(),
+            zipCode: zipCode || '57051-190',
+            receiverName: receiverName.trim(),
+            itemsCount: totalItems,
+            itemsSummary,
+          });
+        } catch {
+          showToast('O servidor não confirmou o pedido. Verifique o histórico antes de tentar novamente.', 'error');
+          return;
+        } finally {
+          setIsFinishing(false);
+        }
 
-        setIsFinishing(false);
         setQuickModalVisible(false);
         clearCart();
         setCheckoutStep(1);

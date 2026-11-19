@@ -1,45 +1,44 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
-import { LoginScreen, RegisterScreen,  ProductDetailScreen, CartScreen, OrderSuccessScreen, } from '../screens';
+import { LoginScreen, RegisterScreen, CartScreen, OrderSuccessScreen } from '../screens';
 import { TabNavigator } from './TabNavigator';
+import { useAuth } from '../context/AuthContext';
 import Colors from '../theme/colors';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const AppNavigator: React.FC = () => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+
   return (
     <Stack.Navigator
-      initialRouteName="Login"
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: Colors.cleanCanvas },
       }}
     >
-      {/* Fluxo de Autenticação */}
-      <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="Register" component={RegisterScreen} />
-
-      {/* Navegação Principal por Abas Inferiores */}
-      <Stack.Screen name="MainTabs" component={TabNavigator} />
-
-      {/* Fluxo Stack de Checkout e Sucesso */}
-      <Stack.Screen
-        name="Checkout"
-        component={CartScreen}
-        options={{
-          headerShown: false,
-          animation: 'slide_from_bottom',
-        }}
-      />
-      <Stack.Screen
-        name="OrderSuccess"
-        component={OrderSuccessScreen}
-        options={{
-          headerShown: false,
-          animation: 'fade',
-        }}
-      />
+      {user ? (
+        <>
+          <Stack.Screen name="MainTabs" component={TabNavigator} />
+          <Stack.Screen
+            name="Checkout"
+            component={CartScreen}
+            options={{ animation: 'slide_from_bottom' }}
+          />
+          <Stack.Screen
+            name="OrderSuccess"
+            component={OrderSuccessScreen}
+            options={{ animation: 'fade' }}
+          />
+        </>
+      ) : (
+        <>
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="Register" component={RegisterScreen} />
+        </>
+      )}
     </Stack.Navigator>
   );
 };

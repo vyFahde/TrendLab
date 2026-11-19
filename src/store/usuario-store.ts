@@ -95,7 +95,7 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
 
     set((state) => ({
       usuario: cleanEmail,
-      jwtToken: jwt !== undefined ? jwt : cleanEmail ? state.jwtToken : null,
+      jwtToken: cleanEmail ? jwt ?? null : null,
       orders: cleanEmail && state.usuario === cleanEmail ? state.orders : [],
       userData: cleanEmail
         ? {
@@ -117,10 +117,10 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
         const filteredLocal = localOrders.filter(
           (o) => !o.userEmail || o.userEmail.toLowerCase() === cleanEmail
         );
-        if (get().usuario === cleanEmail) {
+        if (get().usuario === cleanEmail && get().jwtToken === jwt) {
           set({ orders: filteredLocal });
+          await get().syncWithBackend();
         }
-        await get().syncWithBackend();
       } catch (e) {
         console.warn('Erro ao carregar pedidos do usuário:', e);
       }
@@ -169,16 +169,18 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
   },
 
   addOrder: async (order) => {
-    const { usuario, jwtToken, orders } = get();
-    const cleanEmail = (usuario || order.userEmail || '').trim().toLowerCase();
+    const { usuario, jwtToken } = get();
+    if (!usuario || !jwtToken) throw new Error('Entre novamente para enviar o pedido.');
+    const cleanEmail = usuario;
     const orderWithUser: OrderRecord = {
       ...order,
-      userEmail: cleanEmail || undefined,
+      userEmail: cleanEmail,
     };
 
-    await api.createOrder(orderWithUser, cleanEmail, jwtToken);
+    await api.createOrder(orderWithUser, jwtToken);
+    if (get().jwtToken !== jwtToken) return;
 
-    const nextOrders = [orderWithUser, ...orders.filter((o) => o.id !== order.id)];
+    const nextOrders = [orderWithUser, ...get().orders.filter((o) => o.id !== order.id)];
     set({ orders: nextOrders });
     try {
       if (cleanEmail) {
@@ -190,11 +192,13 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
   },
 
   removeOrder: async (orderId) => {
-    const { usuario, jwtToken, orders } = get();
-    const cleanEmail = (usuario || '').trim().toLowerCase();
-    await api.deleteOrder(orderId, jwtToken);
+    const { usuario: cleanEmail, jwtToken } = get();
+    if (!cleanEmail || !jwtToken) throw new Error('Entre novamente para cancelar o pedido.');
 
-    const nextOrders = orders.filter((o) => o.id !== orderId);
+    await api.deleteOrder(orderId, jwtToken);
+    if (get().jwtToken !== jwtToken) return;
+
+    const nextOrders = get().orders.filter((o) => o.id !== orderId);
     set({ orders: nextOrders });
     try {
       if (cleanEmail) {
@@ -227,19 +231,20 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
     try {
       await api.initBaseUrl();
       const activeEmail = get().usuario?.trim().toLowerCase() || null;
+      const activeToken = get().jwtToken;
       const [health, prodRes, remoteOrders] = await Promise.all([
         api.checkHealth(),
         api.getProducts(),
-        activeEmail ? api.getOrders(activeEmail, get().jwtToken) : Promise.resolve(null),
+        activeEmail && activeToken ? api.getOrders(activeToken) : Promise.resolve(null),
       ]);
 
-      let mergedOrders = activeEmail
+      let mergedOrders = activeEmail && get().jwtToken === activeToken
         ? get().orders.filter(
             (o) => !o.userEmail || o.userEmail.toLowerCase() === activeEmail
           )
         : [];
 
-      if (activeEmail && remoteOrders) {
+      if (activeEmail && remoteOrders && get().jwtToken === activeToken) {
         const remoteForUser = remoteOrders.orders.filter(
           (o) => !o.userEmail || o.userEmail.toLowerCase() === activeEmail
         );
@@ -257,7 +262,7 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
       set({
         apiStatus: health,
         products: prodRes.products,
-        orders: mergedOrders,
+        orders: get().jwtToken === activeToken ? mergedOrders : get().orders,
         isSyncingApi: false,
       });
       return health;
@@ -279,19 +284,16 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
     try {
       await api.initBaseUrl();
       await AsyncStorage.removeItem('@trendlab:orders');
-      const [savedAvatar, savedFit, savedJwt] = await Promise.all([
+      const [savedAvatar, savedFit] = await Promise.all([
         AsyncStorage.getItem('@trendlab:avatar_uri'),
         AsyncStorage.getItem('@trendlab:fit_profile'),
-        AsyncStorage.getItem('@trendlab:jwt_token'),
       ]);
 
       set((state) => ({
         avatarUri: savedAvatar || state.avatarUri,
         fitProfile: savedFit ? JSON.parse(savedFit) : state.fitProfile,
-        jwtToken: savedJwt || state.jwtToken,
       }));
 
-      get().syncWithBackend();
     } catch (e) {
       console.warn('Erro ao hidratar store Zustand:', e);
     }

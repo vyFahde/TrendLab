@@ -18,36 +18,33 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 const { DatabaseSync } = require('node:sqlite');
+const { hashPassword, verifyPassword, migratePasswords, issueSession, verifyJwt } = require('./auth');
 
-const PORT = process.env.PORT || 1337;
-const SQLITE_PATH = path.join(__dirname, 'trendlab.sqlite');
+const PORT = Number(process.env.PORT || 1337);
+const SQLITE_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'trendlab.sqlite');
 const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
 const SEED_JSON_PATH = path.join(__dirname, 'db.json');
-const JWT_SECRET = 'trendlab-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
 
-const sqliteDb = new DatabaseSync(SQLITE_PATH);
+const isHexSecret = /^[a-f0-9]{64}$/i.test(JWT_SECRET || '');
+const isBase64Secret = /^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=$/.test(JWT_SECRET || '');
 
-function initSqlDatabase() {
+if (!isHexSecret && !isBase64Secret) {
+  throw new Error('Defina JWT_SECRET com 32 bytes aleatórios em hexadecimal ou Base64.');
+}
+
+const sqliteDb = new DatabaseSync(SQLITE_PATH, { timeout: 5000 });
+
+async function initSqlDatabase() {
   const schemaSql = fs.readFileSync(SCHEMA_PATH, 'utf-8');
   sqliteDb.exec(schemaSql);
+  await migratePasswords(sqliteDb);
 
-  // Verifica se o banco SQL já possui dados; se estiver vazio, importa a carga inicial de db.json
-  const userCountRow = sqliteDb.prepare('SELECT COUNT(*) AS total FROM users').get();
   const prodCountRow = sqliteDb.prepare('SELECT COUNT(*) AS total FROM produtos').get();
 
   if (fs.existsSync(SEED_JSON_PATH)) {
     const seedData = JSON.parse(fs.readFileSync(SEED_JSON_PATH, 'utf-8'));
-
-    if (userCountRow.total === 0 && Array.isArray(seedData.users)) {
-      const insertUser = sqliteDb.prepare(
-        'INSERT OR IGNORE INTO users (id, username, email, password) VALUES (?, ?, ?, ?)'
-      );
-      for (const u of seedData.users) {
-        insertUser.run(u.id, u.username, u.email.toLowerCase(), u.password);
-      }
-    }
 
     if (prodCountRow.total === 0 && Array.isArray(seedData.produtos)) {
       const insertProd = sqliteDb.prepare(`
@@ -104,8 +101,6 @@ function initSqlDatabase() {
   }
 }
 
-initSqlDatabase();
-
 // Converte uma linha SQL da tabela 'produtos' para o formato JSON esperado pelo App
 function mapProductRow(row) {
   if (!row) return null;
@@ -145,25 +140,6 @@ function mapOrderRow(row) {
   };
 }
 
-// Gera Token JWT assinado com HMAC-SHA256 (Header.Payload.Signature)
-function generateJwt(user) {
-  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-  const payload = Buffer.from(
-    JSON.stringify({
-      sub: String(user.id),
-      id: user.id,
-      email: user.email,
-      name: user.username,
-      iat: Math.floor(Date.now() / 1000),
-    })
-  ).toString('base64url');
-  const signature = crypto
-    .createHmac('sha256', JWT_SECRET)
-    .update(`${header}.${payload}`)
-    .digest('base64url');
-  return `${header}.${payload}.${signature}`;
-}
-
 function parseBody(req) {
   return new Promise((resolve) => {
     let body = '';
@@ -173,7 +149,7 @@ function parseBody(req) {
     req.on('end', () => {
       if (!body) return resolve({});
       try {
-        resolve(JSON.parse(body));
+        resolve(JSON.parse(body) ?? {});
       } catch {
         resolve({});
       }
@@ -187,6 +163,7 @@ function sendJson(res, statusCode, payload, sqlLog) {
   }
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -203,7 +180,7 @@ const server = http.createServer(async (req, res) => {
     const timestamp = new Date().toLocaleTimeString('pt-BR');
     const hasAuth = req.headers.authorization ? ' [JWT]' : '';
     console.log(
-      `[${timestamp}] ${req.method.padEnd(6)} ${decodeURIComponent(req.url)} -> Status ${res.statusCode} (${duration}ms)${hasAuth}`
+      `[${timestamp}] ${req.method.padEnd(6)} ${req.url.split('?')[0]} -> Status ${res.statusCode} (${duration}ms)${hasAuth}`
     );
     if (res.__sqlLog) {
       console.log(`           SQL    ${res.__sqlLog}`);
@@ -233,7 +210,7 @@ const server = http.createServer(async (req, res) => {
       200,
       {
         status: 'online',
-        database: 'SQLite Relational SQL (backend/trendlab.sqlite)',
+        database: 'SQLite Relational SQL',
         service: 'TrendLab RESTful WebService (Strapi v4 Compatible)',
         timestamp: new Date().toISOString(),
         counts: {
@@ -246,96 +223,52 @@ const server = http.createServer(async (req, res) => {
     );
   }
 
-  // POST /api/auth/local
   if (req.method === 'POST' && pathname === '/api/auth/local') {
     const body = await parseBody(req);
-    const identifier = (body.identifier || body.email || '').trim().toLowerCase();
-    const password = body.password || '';
+    const rawIdentifier = body.identifier ?? body.email;
+    const identifier = typeof rawIdentifier === 'string' ? rawIdentifier.trim().toLowerCase() : '';
+    const { password } = body;
 
-    const foundUser = sqliteDb
-      .prepare(
-        'SELECT id, username, email, password FROM users WHERE (LOWER(email) = ? OR LOWER(username) = ?) AND password = ?'
-      )
-      .get(identifier, identifier, password);
-
-    if (!foundUser) {
-      return sendJson(
-        res,
-        400,
-        {
-          data: null,
-          error: {
-            status: 400,
-            name: 'ValidationError',
-            message: 'Credenciais inválidas (identifier ou password incorretos).',
-          },
-        },
-        `SELECT * FROM users WHERE email = '${identifier}' AND password = '***' -> 0 rows`
-      );
+    if (!identifier || typeof password !== 'string' || !password || password.length > 256) {
+      return sendJson(res, 400, { error: { message: 'Credenciais inválidas.' } });
     }
 
-    const jwt = generateJwt(foundUser);
-    return sendJson(
-      res,
-      200,
-      {
-        jwt,
-        user: {
-          id: foundUser.id,
-          username: foundUser.username,
-          email: foundUser.email,
-        },
-      },
-      `SELECT id, username, email FROM users WHERE email = '${identifier}' -> User #${foundUser.id}`
-    );
+    const candidates = sqliteDb.prepare(
+      'SELECT id, username, email, password_hash FROM users WHERE LOWER(email) = ? OR LOWER(username) = ?'
+    ).all(identifier, identifier);
+
+    for (const user of candidates) {
+      if (await verifyPassword(password, user.password_hash)) {
+        return sendJson(res, 200, issueSession(user, JWT_SECRET));
+      }
+    }
+    if (candidates.length === 0) await verifyPassword(password, '');
+
+    return sendJson(res, 400, { error: { message: 'Credenciais inválidas.' } });
   }
 
-  // POST /api/auth/local/register
   if (req.method === 'POST' && pathname === '/api/auth/local/register') {
     const body = await parseBody(req);
-    const email = (body.email || '').trim().toLowerCase();
-    const username = (body.username || body.name || email.split('@')[0]).trim();
-    const password = body.password || '123456';
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const rawName = body.username ?? body.name;
+    const username = typeof rawName === 'string' ? rawName.trim() : email.split('@')[0];
+    const { password } = body;
 
-    if (!email) {
-      return sendJson(res, 400, {
-        error: { status: 400, message: 'O campo email é obrigatório.' },
-      });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !username ||
+        typeof password !== 'string' || password.length < 6 || password.length > 256) {
+      return sendJson(res, 400, { error: { message: 'Informe nome, e-mail e uma senha de 6 a 256 caracteres.' } });
     }
 
-    let existingUser = sqliteDb
-      .prepare('SELECT id, username, email FROM users WHERE LOWER(email) = ?')
-      .get(email);
-
-    let sqlLog = `SELECT id, username, email FROM users WHERE email = '${email}'`;
-
-    if (!existingUser) {
-      const result = sqliteDb
-        .prepare('INSERT INTO users (username, email, password) VALUES (?, ?, ?)')
-        .run(username, email, password);
-
-      existingUser = {
-        id: Number(result.lastInsertRowid),
-        username,
-        email,
-      };
-      sqlLog = `INSERT INTO users (username, email, password) VALUES ('${username}', '${email}', '***') -> ID ${existingUser.id}`;
+    const passwordHash = await hashPassword(password);
+    const result = sqliteDb.prepare(
+      'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?) ON CONFLICT(email) DO NOTHING'
+    ).run(username, email, passwordHash);
+    if (result.changes === 0) {
+      return sendJson(res, 409, { error: { message: 'Já existe uma conta com este e-mail.' } });
     }
 
-    const jwt = generateJwt(existingUser);
-    return sendJson(
-      res,
-      201,
-      {
-        jwt,
-        user: {
-          id: existingUser.id,
-          username: existingUser.username,
-          email: existingUser.email,
-        },
-      },
-      sqlLog
-    );
+    const user = { id: Number(result.lastInsertRowid), username, email };
+    return sendJson(res, 201, issueSession(user, JWT_SECRET));
   }
 
   // 4. GET /api/produtos (SELECT * FROM produtos)
@@ -426,21 +359,24 @@ const server = http.createServer(async (req, res) => {
     );
   }
 
-  // 7. GET /api/pedidos (SELECT * FROM pedidos WHERE user_email = ?)
-  if (req.method === 'GET' && pathname === '/api/pedidos') {
-    const userFilter = parsedUrl.searchParams.get('filters[usuario]');
-    let rows;
-    let sqlLog;
+  let orderUserEmail;
+  if (pathname === '/api/pedidos' || pathname.startsWith('/api/pedidos/')) {
+    const userId = verifyJwt(req.headers.authorization, JWT_SECRET);
+    const user = userId === null ? undefined : sqliteDb
+      .prepare('SELECT email FROM users WHERE id = ?')
+      .get(userId);
 
-    if (userFilter) {
-      rows = sqliteDb
-        .prepare('SELECT * FROM pedidos WHERE LOWER(user_email) = ? ORDER BY created_at DESC')
-        .all(userFilter.toLowerCase());
-      sqlLog = `SELECT * FROM pedidos WHERE user_email = '${userFilter.toLowerCase()}' ORDER BY created_at DESC; (${rows.length} rows)`;
-    } else {
-      rows = sqliteDb.prepare('SELECT * FROM pedidos ORDER BY created_at DESC').all();
-      sqlLog = `SELECT * FROM pedidos ORDER BY created_at DESC; (${rows.length} rows)`;
+    if (!user) {
+      return sendJson(res, 401, { error: { message: 'Entre novamente para acessar seus pedidos.' } });
     }
+    orderUserEmail = user.email.toLowerCase();
+  }
+
+  // 7. GET /api/pedidos
+  if (req.method === 'GET' && pathname === '/api/pedidos') {
+    const rows = sqliteDb
+      .prepare('SELECT * FROM pedidos WHERE LOWER(user_email) = ? ORDER BY created_at DESC')
+      .all(orderUserEmail);
 
     const pedidos = rows.map(mapOrderRow);
     return sendJson(
@@ -450,7 +386,7 @@ const server = http.createServer(async (req, res) => {
         data: pedidos,
         meta: { pagination: { total: pedidos.length } },
       },
-      sqlLog
+      'SELECT * FROM pedidos WHERE LOWER(user_email) = ? ORDER BY created_at DESC;'
     );
   }
 
@@ -467,14 +403,14 @@ const server = http.createServer(async (req, res) => {
     const receiverName = payload.receiverName || '';
     const itemsCount = Number(payload.itemsCount) || 1;
     const itemsSummary = Array.isArray(payload.itemsSummary) ? payload.itemsSummary : [];
-    const userEmail = (payload.userEmail || 'teresa.tavares@trendlab.com').toLowerCase();
 
-    sqliteDb
+    const result = sqliteDb
       .prepare(`
-        INSERT OR REPLACE INTO pedidos (
+        INSERT INTO pedidos (
           id, date, total, payment_method, address, zip_code,
           receiver_name, items_count, items_summary_json, user_email, synced_with_backend
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        ON CONFLICT(id) DO NOTHING
       `)
       .run(
         id,
@@ -486,15 +422,19 @@ const server = http.createServer(async (req, res) => {
         receiverName,
         itemsCount,
         JSON.stringify(itemsSummary),
-        userEmail
+        orderUserEmail
       );
+
+    if (result.changes === 0) {
+      return sendJson(res, 409, { error: { message: 'Já existe um pedido com este código.' } });
+    }
 
     const createdRow = sqliteDb.prepare('SELECT * FROM pedidos WHERE id = ?').get(id);
     return sendJson(
       res,
       201,
       { data: mapOrderRow(createdRow) },
-      `INSERT INTO pedidos (id, total, payment_method, address, user_email) VALUES ('${id}', ${total}, '${paymentMethod}', '${address}', '${userEmail}');`
+      'INSERT INTO pedidos (...) VALUES (...);'
     );
   }
 
@@ -504,7 +444,8 @@ const server = http.createServer(async (req, res) => {
     const body = await parseBody(req);
     const payload = body.data || body;
 
-    const existing = sqliteDb.prepare('SELECT * FROM pedidos WHERE id = ?').get(String(id));
+    const existing = sqliteDb.prepare('SELECT * FROM pedidos WHERE id = ? AND LOWER(user_email) = ?')
+      .get(String(id), orderUserEmail);
     if (!existing) {
       return sendJson(
         res,
@@ -518,22 +459,23 @@ const server = http.createServer(async (req, res) => {
     const nextPayment = payload.paymentMethod ?? existing.payment_method;
 
     sqliteDb
-      .prepare('UPDATE pedidos SET address = ?, payment_method = ? WHERE id = ?')
-      .run(nextAddress, nextPayment, String(id));
+      .prepare('UPDATE pedidos SET address = ?, payment_method = ? WHERE id = ? AND LOWER(user_email) = ?')
+      .run(nextAddress, nextPayment, String(id), orderUserEmail);
 
     const updated = sqliteDb.prepare('SELECT * FROM pedidos WHERE id = ?').get(String(id));
     return sendJson(
       res,
       200,
       { data: mapOrderRow(updated) },
-      `UPDATE pedidos SET address = '${nextAddress}', payment_method = '${nextPayment}' WHERE id = '${id}';`
+      'UPDATE pedidos SET address = ?, payment_method = ? WHERE id = ?;'
     );
   }
 
   // 10. DELETE /api/pedidos/:id (DELETE FROM pedidos WHERE id = ?)
   if (req.method === 'DELETE' && pathname.startsWith('/api/pedidos/')) {
     const id = pathname.split('/').pop();
-    const result = sqliteDb.prepare('DELETE FROM pedidos WHERE id = ?').run(String(id));
+    const result = sqliteDb.prepare('DELETE FROM pedidos WHERE id = ? AND LOWER(user_email) = ?')
+      .run(String(id), orderUserEmail);
 
     if (result.changes === 0) {
       return sendJson(
@@ -561,7 +503,14 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
+initSqlDatabase().then(() => {
+  server.listen(PORT, '0.0.0.0', logStartup);
+}).catch((error) => {
+  console.error('Falha ao inicializar o banco SQLite:', error.message);
+  process.exitCode = 1;
+});
+
+function logStartup() {
   const usersCount = sqliteDb.prepare('SELECT COUNT(*) AS c FROM users').get().c;
   const prodCount = sqliteDb.prepare('SELECT COUNT(*) AS c FROM produtos').get().c;
   const pedCount = sqliteDb.prepare('SELECT COUNT(*) AS c FROM pedidos').get().c;
@@ -569,8 +518,8 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`=============================================================`);
   console.log(`TrendLab REST WebService + Banco SQL (SQLite) ONLINE`);
   console.log(`URL Base   : http://localhost:${PORT}/api`);
-  console.log(`Banco SQL  : backend/trendlab.sqlite (${usersCount} users, ${prodCount} produtos, ${pedCount} pedidos)`);
+  console.log(`Banco SQL  : ${SQLITE_PATH} (${usersCount} users, ${prodCount} produtos, ${pedCount} pedidos)`);
   console.log(`Esquema DDL: backend/schema.sql`);
   console.log(`Aguardando requisicoes HTTP e executando queries SQL...`);
   console.log(`=============================================================`);
-});
+}

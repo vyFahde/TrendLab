@@ -35,7 +35,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "backend": "node backend/server.js"
+    "backend": "node --env-file-if-exists=backend/.env backend/server.js"
   },
   "private": true
 }

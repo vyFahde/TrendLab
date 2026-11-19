@@ -17,7 +17,7 @@ const Tab = createBottomTabNavigator<TabParamList>();
 const CustomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigation }) => {
   const { totalItems } = useCart();
   const { highContrast, palette } = useAccessibility();
-  const { fetchProductsFromApi, syncWithBackend, usuario, jwtToken } = useUsuarioStore();
+  const { fetchProductsFromApi, syncWithBackend, jwtToken } = useUsuarioStore();
   const insets = useSafeAreaInsets();
 
   const bottomPadding = Platform.OS === 'ios' ? Math.max(insets.bottom, 20) : Math.max(insets.bottom, 10);
@@ -59,7 +59,7 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigat
           } else if (route.name === 'ProfileTab') {
             syncWithBackend();
           } else if (route.name === 'CartTab') {
-            api.getOrders(usuario, jwtToken);
+            if (jwtToken) api.getOrders(jwtToken);
           } else if (route.name === 'FittingRoomTab') {
             api.checkHealth();
           }

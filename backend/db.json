@@ -1,42 +1,4 @@
 {
-  "users": [
-    {
-      "id": 1,
-      "username": "Teresa Tavares",
-      "email": "teresa.tavares@trendlab.com",
-      "password": "123456"
-    },
-    {
-      "id": 2,
-      "username": "Gabriel Gomes",
-      "email": "gabriel.gomes@trendlab.com",
-      "password": "123456"
-    },
-    {
-      "id": 3,
-      "username": "Administrador TrendLab",
-      "email": "admin@trendlab.com",
-      "password": "123456"
-    },
-    {
-      "id": 4,
-      "username": "Aluno Teste Strapi",
-      "email": "teste@teste.com",
-      "password": "Teste123456"
-    },
-    {
-      "id": 5,
-      "username": "Teste",
-      "email": "teste@trendlab.com",
-      "password": "123456"
-    },
-    {
-      "id": 6,
-      "username": "Testando",
-      "email": "testando@email.com",
-      "password": "123456"
-    }
-  ],
   "produtos": [
     {
       "id": "prod-1",

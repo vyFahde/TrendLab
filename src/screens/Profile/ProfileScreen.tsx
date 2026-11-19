@@ -10,10 +10,8 @@ import {
   Image,
   Modal,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
-import { RootStackParamList, OrderRecord } from '../../types';
+import { OrderRecord } from '../../types';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AccessibleText } from '../../components/AccessibleText';
 import { AccessibilityBar } from '../../components/AccessibilityBar';
@@ -42,7 +40,6 @@ import {
 } from 'lucide-react-native';
 
 export const ProfileScreen: React.FC = () => {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user, logoutUser } = useAuth();
   const {
     usuario,
@@ -137,20 +134,9 @@ export const ProfileScreen: React.FC = () => {
     }
   };
 
-  const performLogout = async () => {
-    try {
-      await logoutUser();
-      showToast('Sessão encerrada com segurança.', 'info');
-      const rootNav =
-        navigation.getParent<NativeStackNavigationProp<RootStackParamList>>() || navigation;
-      rootNav.reset({
-        index: 0,
-        routes: [{ name: 'Login' }],
-      });
-    } catch (error) {
-      console.warn('Erro ao encerrar sessão:', error);
-      (navigation as any).navigate('Login');
-    }
+  const performLogout = () => {
+    logoutUser();
+    showToast('Sessão encerrada.', 'info');
   };
 
   const handleLogout = () => {
@@ -541,9 +527,13 @@ export const ProfileScreen: React.FC = () => {
                   ]}
                   onPress={async () => {
                     const orderIdToRemove = selectedOrder.id;
-                    await removeOrder(orderIdToRemove);
-                    setSelectedOrder(null);
-                    showToast(`Pedido #${orderIdToRemove} cancelado com sucesso.`, 'info');
+                    try {
+                      await removeOrder(orderIdToRemove);
+                      setSelectedOrder(null);
+                      showToast(`Pedido #${orderIdToRemove} cancelado com sucesso.`, 'info');
+                    } catch {
+                      showToast('Não foi possível cancelar o pedido. Tente novamente.', 'error');
+                    }
                   }}
                   accessibilityRole="button"
                   accessibilityLabel="Cancelar este pedido"

@@ -1,112 +1,79 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUsuarioStore } from '../store/usuario-store';
-import { api, createClientSideJwt } from '../services/api';
+import { api } from '../services/api';
 
 export interface User {
   name: string;
   email: string;
-  jwt?: string;
 }
 
 interface AuthContextData {
   user: User | null;
   registerUser: (name: string, email: string, password: string) => Promise<void>;
-  loginUser: (email: string, password?: string) => Promise<boolean>;
-  logoutUser: () => Promise<void>;
+  loginUser: (email: string, password: string) => Promise<boolean>;
+  logoutUser: () => void;
   loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<{ user: User; expiresAt: number } | null>(null);
   const [loading, setLoading] = useState(true);
-  const { setUsuario, hydrateFromStorage } = useUsuarioStore();
+  const setUsuario = useUsuarioStore((state) => state.setUsuario);
+  const hydrateFromStorage = useUsuarioStore((state) => state.hydrateFromStorage);
 
   useEffect(() => {
-    const loadStoredUser = async () => {
+    const initialize = async () => {
       try {
-        await hydrateFromStorage();
-        const [storedUser, storedJwt] = await Promise.all([
-          AsyncStorage.getItem('@trendlab:active_user'),
-          AsyncStorage.getItem('@trendlab:jwt_token'),
-        ]);
-        if (storedUser) {
-          const parsed: User = JSON.parse(storedUser);
-          const token = storedJwt || parsed.jwt || createClientSideJwt(parsed.email, parsed.name);
-          setUser({ ...parsed, jwt: token });
-          setUsuario(parsed.email, parsed.name, token);
-        }
-      } catch (error) {
-        console.warn('Erro ao carregar usuário ativo', error);
+        const keys = await AsyncStorage.getAllKeys();
+        const legacyAccounts = keys.filter((key) => key.startsWith('@trendlab:account:'));
+        await AsyncStorage.multiRemove(['@trendlab:active_user', '@trendlab:jwt_token', ...legacyAccounts]);
+      } catch {
+        console.warn('Não foi possível limpar as credenciais antigas do aparelho.');
       } finally {
+        await hydrateFromStorage();
         setLoading(false);
       }
     };
-    loadStoredUser();
-  }, [hydrateFromStorage, setUsuario]);
+    initialize();
+  }, [hydrateFromStorage]);
+
+  useEffect(() => {
+    if (!session) return;
+    const timeout = setTimeout(() => {
+      setSession(null);
+      setUsuario(null);
+    }, Math.max(0, session.expiresAt - Date.now()));
+    return () => clearTimeout(timeout);
+  }, [session, setUsuario]);
+
+  const openSession = (auth: Awaited<ReturnType<typeof api.register>>) => {
+    const user = { name: auth.user.username, email: auth.user.email };
+    setUsuario(user.email, user.name, auth.jwt);
+    setSession({ user, expiresAt: auth.expiresAt });
+  };
 
   const registerUser = async (name: string, email: string, password: string) => {
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanName = name.trim();
-
-    // Salva o cadastro local e envia POST /api/auth/local/register ao WebService REST/Strapi
-    await AsyncStorage.setItem(
-      `@trendlab:account:${cleanEmail}`,
-      JSON.stringify({ name: cleanName, email: cleanEmail, password })
-    );
-
-    const apiAuth = await api.register(cleanName, cleanEmail, password);
-    const newUser: User = {
-      name: apiAuth.user.username || cleanName,
-      email: apiAuth.user.email || cleanEmail,
-      jwt: apiAuth.jwt,
-    };
-
-    await Promise.all([
-      AsyncStorage.setItem('@trendlab:active_user', JSON.stringify(newUser)),
-      AsyncStorage.setItem('@trendlab:jwt_token', apiAuth.jwt),
-    ]);
-
-    setUser(newUser);
-    setUsuario(newUser.email, newUser.name, apiAuth.jwt);
+    openSession(await api.register(name, email, password));
   };
 
-  const loginUser = async (email: string, password?: string): Promise<boolean> => {
-    const cleanEmail = email.trim().toLowerCase();
+  const loginUser = async (email: string, password: string) => {
+    const auth = await api.login(email, password);
+    if (!auth) return false;
 
-    // Autentica via WebService REST/Strapi (POST /api/auth/local) ou validação local com geração de JWT
-    const authResult = await api.login(cleanEmail, password);
-    if (authResult && authResult.ok) {
-      const loggedUser: User = {
-        name: authResult.user.username,
-        email: authResult.user.email,
-        jwt: authResult.jwt,
-      };
-      await Promise.all([
-        AsyncStorage.setItem('@trendlab:active_user', JSON.stringify(loggedUser)),
-        AsyncStorage.setItem('@trendlab:jwt_token', authResult.jwt),
-      ]);
-      setUser(loggedUser);
-      setUsuario(loggedUser.email, loggedUser.name, authResult.jwt);
-      return true;
-    }
-
-    return false;
+    openSession(auth);
+    return true;
   };
 
-  const logoutUser = async () => {
-    await Promise.all([
-      AsyncStorage.removeItem('@trendlab:active_user'),
-      AsyncStorage.removeItem('@trendlab:jwt_token'),
-    ]);
-    setUser(null);
-    setUsuario(null, undefined, null);
+  const logoutUser = () => {
+    setSession(null);
+    setUsuario(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, registerUser, loginUser, logoutUser, loading }}>
+    <AuthContext.Provider value={{ user: session?.user ?? null, registerUser, loginUser, logoutUser, loading }}>
       {children}
     </AuthContext.Provider>
   );
