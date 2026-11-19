@@ -20,8 +20,8 @@ interface UsuarioStore {
   products: Product[];
   apiStatus: ApiStatusInfo | null;
   isSyncingApi: boolean;
-  setUsuario: (email: string | null, name?: string, jwt?: string | null) => void;
-  setAvatarUri: (uri: string | null) => Promise<void>;
+  setUsuario: (email: string | null, name?: string, jwt?: string | null) => Promise<void>;
+  setAvatarUri: (uri: string | null, sessionToken: string | null) => Promise<void>;
   updateFitProfile: (profile: Partial<FitProfile>) => Promise<void>;
   addOrder: (order: OrderRecord) => Promise<void>;
   removeOrder: (orderId: string) => Promise<void>;
@@ -79,6 +79,9 @@ const defaultFitProfile: FitProfile = {
 const getOrdersStorageKey = (email: string) =>
   `@trendlab:orders:${email.trim().toLowerCase()}`;
 
+const avatarStorageKey = (email: string) => '@trendlab:avatar_uri:' + email;
+const fitStorageKey = (email: string) => '@trendlab:fit_profile:' + email;
+
 export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
   usuario: null,
   userData: null,
@@ -90,27 +93,47 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
   apiStatus: null,
   isSyncingApi: false,
 
-  setUsuario: (email, name, jwt) => {
+  setUsuario: async (email, name, jwt) => {
     const cleanEmail = email ? email.trim().toLowerCase() : null;
 
-    set((state) => ({
+    const sessionToken = cleanEmail ? jwt ?? null : null;
+
+    set({
       usuario: cleanEmail,
-      jwtToken: cleanEmail ? jwt ?? null : null,
-      orders: cleanEmail && state.usuario === cleanEmail ? state.orders : [],
+      jwtToken: sessionToken,
+      orders: [],
+      avatarUri: null,
+      fitProfile: defaultFitProfile,
       userData: cleanEmail
         ? {
             email: cleanEmail,
-            name: name || state.userData?.name || cleanEmail.split('@')[0],
-            avatarUri: state.avatarUri,
+            name: name || cleanEmail.split('@')[0],
+            avatarUri: null,
           }
         : null,
-    }));
+    });
 
-    if (!cleanEmail) {
+    if (!cleanEmail || !sessionToken) {
       return;
     }
 
-    (async () => {
+    try {
+      const [savedAvatar, savedFit] = await Promise.all([
+        AsyncStorage.getItem(avatarStorageKey(cleanEmail)),
+        AsyncStorage.getItem(fitStorageKey(cleanEmail)),
+      ]);
+      if (get().usuario !== cleanEmail || get().jwtToken !== sessionToken) return;
+      const fitProfile = savedFit ? { ...defaultFitProfile, ...JSON.parse(savedFit) } : defaultFitProfile;
+      set(state => ({
+        avatarUri: savedAvatar,
+        fitProfile,
+        userData: state.userData && { ...state.userData, avatarUri: savedAvatar },
+      }));
+    } catch (error) {
+      console.warn('Erro ao carregar o perfil do usuário:', error);
+    }
+
+    void (async () => {
       try {
         const savedUserOrders = await AsyncStorage.getItem(getOrdersStorageKey(cleanEmail));
         const localOrders: OrderRecord[] = savedUserOrders ? JSON.parse(savedUserOrders) : [];
@@ -127,16 +150,19 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
     })();
   },
 
-  setAvatarUri: async (uri) => {
+  setAvatarUri: async (uri, sessionToken) => {
+    const { usuario, jwtToken } = get();
+    if (!usuario || !sessionToken || sessionToken !== jwtToken) return;
+
     set((state) => ({
       avatarUri: uri,
       userData: state.userData ? { ...state.userData, avatarUri: uri } : null,
     }));
     try {
       if (uri) {
-        await AsyncStorage.setItem('@trendlab:avatar_uri', uri);
+        await AsyncStorage.setItem(avatarStorageKey(usuario), uri);
       } else {
-        await AsyncStorage.removeItem('@trendlab:avatar_uri');
+        await AsyncStorage.removeItem(avatarStorageKey(usuario));
       }
     } catch (e) {
       console.warn('Erro ao salvar avatar no AsyncStorage:', e);
@@ -144,7 +170,8 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
   },
 
   updateFitProfile: async (partial) => {
-    const current = get().fitProfile;
+    const { usuario, jwtToken, fitProfile: current } = get();
+    if (!usuario || !jwtToken) return;
     const nextHeight = partial.heightCm ?? current.heightCm;
     const nextWeight = partial.weightKg ?? current.weightKg;
     const nextPref = partial.fitPreference ?? current.fitPreference;
@@ -162,7 +189,7 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
 
     set({ fitProfile: updated });
     try {
-      await AsyncStorage.setItem('@trendlab:fit_profile', JSON.stringify(updated));
+      await AsyncStorage.setItem(fitStorageKey(usuario), JSON.stringify(updated));
     } catch (e) {
       console.warn('Erro ao salvar perfil do provador:', e);
     }
@@ -283,17 +310,7 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
   hydrateFromStorage: async () => {
     try {
       await api.initBaseUrl();
-      await AsyncStorage.removeItem('@trendlab:orders');
-      const [savedAvatar, savedFit] = await Promise.all([
-        AsyncStorage.getItem('@trendlab:avatar_uri'),
-        AsyncStorage.getItem('@trendlab:fit_profile'),
-      ]);
-
-      set((state) => ({
-        avatarUri: savedAvatar || state.avatarUri,
-        fitProfile: savedFit ? JSON.parse(savedFit) : state.fitProfile,
-      }));
-
+      await AsyncStorage.multiRemove(['@trendlab:orders', '@trendlab:avatar_uri', '@trendlab:fit_profile']);
     } catch (e) {
       console.warn('Erro ao hidratar store Zustand:', e);
     }

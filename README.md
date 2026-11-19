@@ -149,7 +149,7 @@ O back-end migra as senhas legadas ao iniciar e desativa as contas de demonstra�
 
 ## 7. Implantar a API e gerar o APK de avaliação
 
-1. No painel do Render, crie um Blueprint a partir da branch do GitHub que contém `render.yaml`. O Blueprint configura o serviço em um plano pago com disco persistente, gera uma `JWT_SECRET` exclusiva para a hospedagem e inicializa um novo SQLite em `/var/data/trendlab.sqlite`.
+1. No painel do Render, crie um Blueprint a partir da branch do GitHub que contém `render.yaml`. O Blueprint configura o serviço gratuito, gera uma `JWT_SECRET` exclusiva e inicializa um SQLite na instância. O Render pode suspender a API após 15 minutos sem tráfego. Suspensões, reinícios e novos deploys apagam os cadastros e pedidos do SQLite. Abra `/api/status` antes da avaliação, aguarde a API ficar online e use contas fictícias criadas na sessão.
 2. Abra `/api/status` na URL HTTPS atribuída pelo Render e confirme que a resposta informa `online`.
 3. Entre no Expo com uma conta que tenha acesso ao projeto TrendLab. No ambiente EAS `preview`, configure a variável pública `EXPO_PUBLIC_API_URL` com a URL HTTPS atribuída pelo Render, incluindo o sufixo `/api`. A chave de assinatura fica no servidor.
 4. Na pasta do projeto, gere o APK com `npx eas-cli@latest build --platform android --profile preview`. Baixe o APK pela página do build e valide cadastro, login e um pedido pelo Android.

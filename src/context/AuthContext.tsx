@@ -44,32 +44,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!session) return;
     const timeout = setTimeout(() => {
       setSession(null);
-      setUsuario(null);
+      void setUsuario(null);
     }, Math.max(0, session.expiresAt - Date.now()));
     return () => clearTimeout(timeout);
   }, [session, setUsuario]);
 
-  const openSession = (auth: Awaited<ReturnType<typeof api.register>>) => {
+  const openSession = async (auth: Awaited<ReturnType<typeof api.register>>) => {
     const user = { name: auth.user.username, email: auth.user.email };
-    setUsuario(user.email, user.name, auth.jwt);
+    await setUsuario(user.email, user.name, auth.jwt);
+    if (useUsuarioStore.getState().jwtToken !== auth.jwt) return;
     setSession({ user, expiresAt: auth.expiresAt });
   };
 
   const registerUser = async (name: string, email: string, password: string) => {
-    openSession(await api.register(name, email, password));
+    await openSession(await api.register(name, email, password));
   };
 
   const loginUser = async (email: string, password: string) => {
     const auth = await api.login(email, password);
     if (!auth) return false;
 
-    openSession(auth);
+    await openSession(auth);
     return true;
   };
 
   const logoutUser = () => {
     setSession(null);
-    setUsuario(null);
+    void setUsuario(null);
   };
 
   return (

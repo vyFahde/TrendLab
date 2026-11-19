@@ -8,7 +8,6 @@
  * - POST   /api/auth/local/register     -> Cadastro de novo usuário (retorna JWT)
  * - GET    /api/produtos                -> Lista catálogo de produtos
  * - GET    /api/produtos/:id            -> Busca produto por ID
- * - POST   /api/produtos                -> Cadastra novo produto
  * - GET    /api/pedidos                 -> Lista pedidos filtrados por e-mail do usuário
  * - POST   /api/pedidos                 -> Registra novo pedido no banco SQL
  * - PUT    /api/pedidos/:id             -> Atualiza pedido existente
@@ -140,19 +139,63 @@ function mapOrderRow(row) {
   };
 }
 
+const maxBodyBytes = 64 * 1024;
+const authWindowMs = 60_000;
+const maxConcurrentAuth = 4;
+const authAttempts = new Map();
+let authWindowEndsAt = 0;
+let activeAuthRequests = 0;
+
+function reserveAuthAttempt(req, registration) {
+  const now = Date.now();
+  if (now >= authWindowEndsAt) {
+    authAttempts.clear();
+    authWindowEndsAt = now + authWindowMs;
+  }
+
+  const address = req.socket.remoteAddress || 'unknown';
+  if (activeAuthRequests >= maxConcurrentAuth ||
+      (!authAttempts.has(address) && authAttempts.size >= 2048)) return false;
+
+  const attempts = authAttempts.get(address) || { login: 0, register: 0 };
+  const kind = registration ? 'register' : 'login';
+  if (attempts[kind] >= (registration ? 10 : 30)) return false;
+  attempts[kind] += 1;
+  authAttempts.set(address, attempts);
+  return true;
+}
+
+class RequestError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
 function parseBody(req) {
-  return new Promise((resolve) => {
-    let body = '';
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let bytes = 0;
+    req.on('error', reject);
     req.on('data', (chunk) => {
-      body += chunk.toString();
+      bytes += chunk.length;
+      if (bytes > maxBodyBytes) {
+        chunks.length = 0;
+        reject(new RequestError(413, 'Requisição excede o limite de 64 KB.'));
+        return;
+      }
+      chunks.push(chunk);
     });
     req.on('end', () => {
-      if (!body) return resolve({});
+      if (bytes > maxBodyBytes) return;
+      if (!bytes) return resolve({});
       try {
-        resolve(JSON.parse(body) ?? {});
+        const value = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if (value && typeof value === 'object' && !Array.isArray(value)) return resolve(value);
       } catch {
-        resolve({});
+        // Responda com o mesmo erro para JSON inválido e tipos não aceitos.
       }
+      reject(new RequestError(400, 'Envie um objeto JSON válido.'));
     });
   });
 }
@@ -171,7 +214,7 @@ function sendJson(res, statusCode, payload, sqlLog) {
   res.end(JSON.stringify(payload));
 }
 
-const server = http.createServer(async (req, res) => {
+async function handleRequest(req, res) {
   const startTime = Date.now();
 
   res.on('finish', () => {
@@ -223,52 +266,21 @@ const server = http.createServer(async (req, res) => {
     );
   }
 
-  if (req.method === 'POST' && pathname === '/api/auth/local') {
-    const body = await parseBody(req);
-    const rawIdentifier = body.identifier ?? body.email;
-    const identifier = typeof rawIdentifier === 'string' ? rawIdentifier.trim().toLowerCase() : '';
-    const { password } = body;
-
-    if (!identifier || typeof password !== 'string' || !password || password.length > 256) {
-      return sendJson(res, 400, { error: { message: 'Credenciais inválidas.' } });
+  const isRegistration = pathname === '/api/auth/local/register';
+  if (req.method === 'POST' && (pathname === '/api/auth/local' || isRegistration)) {
+    if (!reserveAuthAttempt(req, isRegistration)) {
+      req.resume();
+      res.setHeader('Retry-After', '60');
+      return sendJson(res, 429, { error: { message: 'Muitas tentativas. Aguarde um minuto e tente novamente.' } });
     }
 
-    const candidates = sqliteDb.prepare(
-      'SELECT id, username, email, password_hash FROM users WHERE LOWER(email) = ? OR LOWER(username) = ?'
-    ).all(identifier, identifier);
-
-    for (const user of candidates) {
-      if (await verifyPassword(password, user.password_hash)) {
-        return sendJson(res, 200, issueSession(user, JWT_SECRET));
-      }
+    activeAuthRequests += 1;
+    try {
+      const body = await parseBody(req);
+      return await authenticate(res, body, isRegistration);
+    } finally {
+      activeAuthRequests -= 1;
     }
-    if (candidates.length === 0) await verifyPassword(password, '');
-
-    return sendJson(res, 400, { error: { message: 'Credenciais inválidas.' } });
-  }
-
-  if (req.method === 'POST' && pathname === '/api/auth/local/register') {
-    const body = await parseBody(req);
-    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
-    const rawName = body.username ?? body.name;
-    const username = typeof rawName === 'string' ? rawName.trim() : email.split('@')[0];
-    const { password } = body;
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !username ||
-        typeof password !== 'string' || password.length < 6 || password.length > 256) {
-      return sendJson(res, 400, { error: { message: 'Informe nome, e-mail e uma senha de 6 a 256 caracteres.' } });
-    }
-
-    const passwordHash = await hashPassword(password);
-    const result = sqliteDb.prepare(
-      'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?) ON CONFLICT(email) DO NOTHING'
-    ).run(username, email, passwordHash);
-    if (result.changes === 0) {
-      return sendJson(res, 409, { error: { message: 'Já existe uma conta com este e-mail.' } });
-    }
-
-    const user = { id: Number(result.lastInsertRowid), username, email };
-    return sendJson(res, 201, issueSession(user, JWT_SECRET));
   }
 
   // 4. GET /api/produtos (SELECT * FROM produtos)
@@ -319,44 +331,9 @@ const server = http.createServer(async (req, res) => {
     );
   }
 
-  // 6. POST /api/produtos (INSERT INTO produtos ...)
   if (req.method === 'POST' && pathname === '/api/produtos') {
-    const body = await parseBody(req);
-    const payload = body.data || body;
-    const id = payload.id || `prod-${Date.now()}`;
-
-    sqliteDb
-      .prepare(`
-        INSERT INTO produtos (
-          id, name, category, price, original_price, rating, review_count,
-          image_url, fabric, bullet_points_json, available_sizes_json,
-          recommended_size, colors_json, in_stock
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
-      .run(
-        id,
-        payload.name || 'Novo Produto',
-        payload.category || 'Camisetas',
-        Number(payload.price) || 99.9,
-        payload.originalPrice ?? null,
-        Number(payload.rating) || 5.0,
-        Number(payload.reviewCount) || 1,
-        payload.imageUrl || '',
-        payload.fabric || '',
-        JSON.stringify(payload.bulletPoints || []),
-        JSON.stringify(payload.availableSizes || ['P', 'M', 'G']),
-        payload.recommendedSize || 'M',
-        JSON.stringify(payload.colors || []),
-        1
-      );
-
-    const created = sqliteDb.prepare('SELECT * FROM produtos WHERE id = ?').get(id);
-    return sendJson(
-      res,
-      201,
-      { data: mapProductRow(created) },
-      `INSERT INTO produtos (id, name, category, price, ...) VALUES ('${id}', '${payload.name}', ...);`
-    );
+    res.setHeader('Allow', 'GET, OPTIONS');
+    return sendJson(res, 405, { error: { message: 'O catálogo é somente leitura.' } });
   }
 
   let orderUserEmail;
@@ -500,6 +477,63 @@ const server = http.createServer(async (req, res) => {
       name: 'NotFoundError',
       message: `Rota ${req.method} ${pathname} não encontrada no WebService TrendLab.`,
     },
+  });
+}
+
+async function authenticate(res, body, isRegistration) {
+  if (!isRegistration) {
+    const rawIdentifier = body.identifier ?? body.email;
+    const identifier = typeof rawIdentifier === 'string' ? rawIdentifier.trim().toLowerCase() : '';
+    const { password } = body;
+
+    if (!identifier || typeof password !== 'string' || !password || password.length > 256) {
+      return sendJson(res, 400, { error: { message: 'Credenciais inválidas.' } });
+    }
+
+    const candidates = sqliteDb.prepare(
+      'SELECT id, username, email, password_hash FROM users WHERE LOWER(email) = ? OR LOWER(username) = ?'
+    ).all(identifier, identifier);
+
+    for (const user of candidates) {
+      if (await verifyPassword(password, user.password_hash)) {
+        return sendJson(res, 200, issueSession(user, JWT_SECRET));
+      }
+    }
+    if (candidates.length === 0) await verifyPassword(password, '');
+
+    return sendJson(res, 400, { error: { message: 'Credenciais inválidas.' } });
+  }
+
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+  const rawName = body.username ?? body.name;
+  const username = typeof rawName === 'string' ? rawName.trim() : email.split('@')[0];
+  const { password } = body;
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !username ||
+      typeof password !== 'string' || password.length < 6 || password.length > 256) {
+    return sendJson(res, 400, { error: { message: 'Informe nome, e-mail e uma senha de 6 a 256 caracteres.' } });
+  }
+
+  const passwordHash = await hashPassword(password);
+  const result = sqliteDb.prepare(
+    'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?) ON CONFLICT(email) DO NOTHING'
+  ).run(username, email, passwordHash);
+  if (result.changes === 0) {
+    return sendJson(res, 409, { error: { message: 'Já existe uma conta com este e-mail.' } });
+  }
+
+  const user = { id: Number(result.lastInsertRowid), username, email };
+  return sendJson(res, 201, issueSession(user, JWT_SECRET));
+}
+
+const server = http.createServer({ requestTimeout: 15_000, headersTimeout: 10_000 }, (req, res) => {
+  handleRequest(req, res).catch((error) => {
+    if (res.destroyed) return;
+    if (error instanceof RequestError) {
+      return sendJson(res, error.status, { error: { message: error.message } });
+    }
+    console.error('Falha ao processar requisição:', error.name);
+    sendJson(res, 500, { error: { message: 'Falha interna ao processar a requisição.' } });
   });
 });
 

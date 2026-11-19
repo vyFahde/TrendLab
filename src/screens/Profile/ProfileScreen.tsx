@@ -43,6 +43,7 @@ export const ProfileScreen: React.FC = () => {
   const { user, logoutUser } = useAuth();
   const {
     usuario,
+    jwtToken,
     userData,
     avatarUri,
     setAvatarUri,
@@ -96,7 +97,7 @@ export const ProfileScreen: React.FC = () => {
         const imgUri = foto.assets[0].base64
           ? 'data:image/jpg;base64,' + foto.assets[0].base64
           : foto.assets[0].uri;
-        await setAvatarUri(imgUri);
+        await setAvatarUri(imgUri, jwtToken);
         showToast('Foto de perfil atualizada com a câmera!', 'success');
       }
     } catch {
@@ -126,7 +127,7 @@ export const ProfileScreen: React.FC = () => {
         const imgUri = foto.assets[0].base64
           ? 'data:image/jpg;base64,' + foto.assets[0].base64
           : foto.assets[0].uri;
-        await setAvatarUri(imgUri);
+        await setAvatarUri(imgUri, jwtToken);
         showToast('Foto de perfil atualizada da galeria!', 'success');
       }
     } catch {

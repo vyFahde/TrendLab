@@ -160,6 +160,7 @@ export const api = {
 
   login: async (identifier: string, password: string): Promise<AuthSession | null> => {
     const response = await authenticate('', { identifier: identifier.trim().toLowerCase(), password });
+    if (response.status === 429) throw new Error('Muitas tentativas. Aguarde um minuto e tente novamente.');
     if (response.status === 400 || response.status === 401) return null;
     if (!response.ok) throw new Error('Não foi possível realizar o login. Tente novamente.');
     return readSession(response);
@@ -171,6 +172,7 @@ export const api = {
       email: email.trim().toLowerCase(),
       password,
     });
+    if (response.status === 429) throw new Error('Muitas tentativas. Aguarde um minuto e tente novamente.');
     if (response.status === 409) throw new Error('Já existe uma conta com este e-mail.');
     if (!response.ok) throw new Error('Não foi possível concluir o cadastro. Verifique os dados e tente novamente.');
     return readSession(response);
