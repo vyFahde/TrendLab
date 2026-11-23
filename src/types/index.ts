@@ -1,3 +1,5 @@
+import type { NavigatorScreenParams } from '@react-navigation/native';
+
 export interface Product {
   id: string;
   name: string;
@@ -54,14 +56,13 @@ export type HomeStackParamList = {
 export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
-  MainTabs: undefined;
-  Checkout: undefined;
+  MainTabs: NavigatorScreenParams<TabParamList> | undefined;
   OrderSuccess: { orderId: string; total: number };
 };
 
 // Rotas das Abas Inferiores
 export type TabParamList = {
-  HomeTab: undefined;
+  HomeTab: NavigatorScreenParams<HomeStackParamList> | undefined;
   FittingRoomTab: undefined;
   CartTab: undefined;
   ProfileTab: undefined;

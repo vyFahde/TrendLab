@@ -7,8 +7,8 @@
 ---
 
 ## 📖 1. Sobre a Aplicação
-O **TrendLab** é uma plataforma mobile completa de e-commerce de moda desenvolvida com foco em **Acessibilidade Digital (WCAG AAA)**, **Calm UI** e integração **Full-Stack REST + SQLite + JWT**. O projeto foi desenhado para eliminar barreiras sensoriais, visuais e motoras:
-- **Baixa Visão, Miopia Severa e Fotofobia:** Interface com **Modo Escuro (`darkMode`)**, **Alto Contraste WCAG AAA (`highContrast`)**, ampliação dinâmica de fontes (`1.0x` a `1.6x`), descrições ampliadas em `+2px` sem emojis (leitura limpa para TalkBack/VoiceOver), sintetizador de voz nativo (`expo-speech`) e **Super Zoom com Lupa Móvel Interativa (`2.6x`)** para inspeção de costuras e tramas do tecido.
+O **TrendLab** é uma protótipo acadêmico de e-commerce de moda com recursos de **acessibilidade digital**, **Calm UI** e integração **Full-Stack REST + SQLite + JWT**. O projeto foi desenhado para eliminar barreiras sensoriais, visuais e motoras:
+- **Baixa Visão, Miopia Severa e Fotofobia:** Interface com **Modo Escuro (`darkMode`)**, **Alto Contraste WCAG AAA (`highContrast`)**, ampliação dinâmica de fontes (90% a 130%), descrições ampliadas em `+2px` sem emojis (leitura limpa para TalkBack/VoiceOver), sintetizador de voz nativo (`expo-speech`) e **Super Zoom com Lupa Móvel Interativa (`2.6x`)** para inspeção de costuras e tramas do tecido.
 - **TDAH, TEA e Dislexia:** Navegação objetiva em tópicos curtos (*bullet points*), ausência de anúncios ou elementos piscantes e **Modo Foco Cognitivo (`focusMode`)** para redução de sobrecarga visual.
 - **Acessibilidade Motora e Daltonismo:** Identificação nominal explícita de cores, preenchimento automático de endereço via **GPS (`expo-location`)**, botões direcionais para mover a lupa do Super Zoom com toques simples, alvos táteis ampliados (mínimo `48px` a `56px`) e feedbacks não bloqueantes via **Toast** (`AccessibleToast`).
 
@@ -34,11 +34,11 @@ O aplicativo conta com um motor dinâmico de temas (`src/theme/colors.ts` e `src
 ## 📱 3. Estrutura, Telas e Recursos Nativos Implementados
 
 ### Barra Superior Global de Acessibilidade (`src/components/AccessibilityBar.tsx`)
-Presente no topo das telas principais, permitindo ajustar a qualquer momento:
-- **Escala de Fonte em Tempo Real (`A-` / `A+`)** de `100%` até `160%`.
+Presente no topo das telas. O painel pode ser recolhido e mantém o indicador de rede visível. A escolha é lembrada entre telas e ao reabrir o app.
+- **Escala de Fonte em Tempo Real (`A-` / `A+`)** de 90% a 130%.
 - **Modo Escuro (`darkMode`):** Alternância rápida entre tema claro e escuro (ícones Lua/Sol).
 - **Alto Contraste (`highContrast`):** Reforça bordas (`2.5px`), pesos tipográficos, ícones e contraste absoluto (Preto/Branco/Amarelo `#FACC15`).
-- **Modo Foco (`focusMode`):** Oculta badges secundários e simplifica os cards para foco na decisão de compra.
+- **Modo Foco (`focusMode`):** Reduz elementos secundários e mantém o preço atual e o preço anterior visíveis no catálogo e nos detalhes.
 
 ### Fluxo de Autenticação + JWT (`POST /api/auth/local`)
 - **Login (`src/screens/Auth/LoginScreen.tsx`):** Validação com Formik + Yup, autenticação no Back-end SQL com retorno de **Token JWT** e sincronização global na store **Zustand** (`useUsuarioStore`).
@@ -63,12 +63,12 @@ Presente no topo das telas principais, permitindo ajustar a qualquer momento:
 ### Sacola, Localização GPS e Checkout Integrado ao Banco SQL
 - **Sacola & Checkout (`src/screens/Cart/CartScreen.tsx`):**
   - **Preenchimento de Endereço via GPS (`expo-location`):** Obtém as coordenadas de satélite (`getCurrentPositionAsync`) e realiza geocodificação reversa (`reverseGeocodeAsync`) para preencher automaticamente rua, número, bairro, cidade, UF e CEP.
-  - **Registro de Pedido no Banco SQL (`POST /api/pedidos`):** Ao finalizar a compra (Pix, Cartão ou Boleto), o pedido é gravado na tabela SQL `pedidos` autenticado com o cabeçalho `Authorization: Bearer <jwt>`.
+  - **Registro de Pedido no Banco SQL (`POST /api/pedidos`):** Ao confirmar um pedido de demonstração (Pix, cartão ou boleto simulados), o pedido é gravado na tabela SQL `pedidos` autenticado com o cabeçalho `Authorization: Bearer <jwt>`.
 - **Pedido Confirmado (`src/screens/Cart/OrderSuccessScreen.tsx`):** Tela de recibo com resumo da compra.
 
 ### Minha Conta e Gestão de Pedidos
 - **Minha Conta (`src/screens/Profile/ProfileScreen.tsx`):**
-  - **Foto de Perfil com Câmera / Galeria (`expo-image-picker`):** Captura foto pela câmera nativa (`launchCameraAsync`) ou seleciona da galeria (`launchImageLibraryAsync`) com conversão Base64 e persistência global no perfil.
+  - **Foto de Perfil com Câmera / Galeria (`expo-image-picker`):** Captura foto pela câmera nativa (`launchCameraAsync`) ou seleciona da galeria (`launchImageLibraryAsync`) com conversão Base64 e armazenamento local separado por conta.
   - **Histórico e Cancelamento de Pedidos (`GET` e `DELETE /api/pedidos/:id`):** Consulta de pedidos realizados exclusivamente pelo usuário autenticado, com modal de detalhes e botão para cancelar/excluir o pedido diretamente no banco SQLite.
 
 ---
@@ -87,6 +87,13 @@ O projeto inclui um servidor Node.js na porta `1337` (`backend/server.js`) conec
 | `POST` | `/api/pedidos` | `INSERT INTO pedidos (...) VALUES (...)` | Grava novo pedido finalizado na Sacola (`[JWT]`) |
 | `PUT` | `/api/pedidos/:id` | `UPDATE pedidos SET address = ?, payment_method = ? WHERE id = ?` | Atualiza dados de um pedido existente (`[JWT]`) |
 | `DELETE` | `/api/pedidos/:id` | `DELETE FROM pedidos WHERE id = ?` | Cancela e remove um pedido do banco SQL (`[JWT]`) |
+
+### Integração e armazenamento de dados
+
+O app usa a API para cadastrar e autenticar contas, consultar o catálogo, criar pedidos, consultar o histórico e cancelar pedidos. A edição de endereço e método de pagamento de um pedido está disponível pela rota `PUT /api/pedidos/:id`. A interface oferece criação, consulta e cancelamento.
+
+- **No servidor.** O SQLite guarda o nome de usuário, o e-mail, o hash da senha, o catálogo e os pedidos com os dados de entrega.
+- **No dispositivo ou navegador.** A sacola fica em memória até o checkout. A foto de perfil, as medidas do provador e uma cópia do histórico de pedidos são armazenadas localmente por conta. As preferências de acessibilidade também ficam no armazenamento local.
 
 ---
 
@@ -107,7 +114,7 @@ TrendLab/
     ├── context/                    # Contextos de Acessibilidade (4 temas), Autenticação e Sacola
     ├── data/                       # Catálogo base de fallback (mockProducts.ts)
     ├── navigation/                 # Navegação híbrida: AppNavigator (Stack), TabNavigator (CustomTabBar) e HomeStackNavigator
-    ├── screens/                    # 7 Telas completas (Login, Register, Home, ProductDetail, FittingRoom, Cart, OrderSuccess, Profile)
+    ├── screens/                    # 8 telas e fluxos (Login, Register, Home, ProductDetail, FittingRoom, Cart, OrderSuccess, Profile)
     ├── services/                   # Cliente HTTP REST (api.ts) com detecção automática de IP LAN no mobile
     ├── store/                      # Gerenciamento de Estado Global com Zustand (usuario-store.ts, useToastStore.ts)
     ├── theme/                      # Paletas de cores WCAG AAA (colors.ts) e espaçamentos (spacing.ts)
@@ -140,16 +147,16 @@ npx expo start
 - **No Celular (Expo Go):** Escaneie o QR Code exibido no terminal (o app detectará automaticamente o IP da sua máquina na rede Wi-Fi para conversar com o Back-end na porta `1337`).
 - **No Navegador Web:** Pressione `w` no terminal (o app será exibido dentro de uma moldura interativa de smartphone de `412x892` centralizada na tela).
 
-### Autenticação para avaliação
+### Autenticação
 Crie uma conta pela tela de cadastro com a API em execução.
 
-O login depende da API. O servidor guarda hashes scrypt com salt aleatório e emite JWTs válidos por uma hora. O app mantém a sessão em memória e pede login novamente ao ser reaberto.
+O login depende da API. O servidor guarda hashes scrypt com salt aleatório e emite JWTs válidos por uma hora. No Android e no iOS, o Expo SecureStore guarda o token e o app confirma sua validade com o servidor ao reabrir. Sair da conta remove o token do aparelho. Na web, a sessão fica em memória.
 
 O back-end migra as senhas legadas ao iniciar e desativa as contas de demonstração que usavam credenciais publicadas. Troque qualquer outra senha que já tenha passado por versões antigas do SQLite no Git.
 
-## 7. Implantar a API e gerar o APK de avaliação
+## 7. Implantar a API e gerar o APK
 
-1. No painel do Render, crie um Blueprint a partir da branch do GitHub que contém `render.yaml`. O Blueprint configura o serviço gratuito, gera uma `JWT_SECRET` exclusiva e inicializa um SQLite na instância. O Render pode suspender a API após 15 minutos sem tráfego. Suspensões, reinícios e novos deploys apagam os cadastros e pedidos do SQLite. Abra `/api/status` antes da avaliação, aguarde a API ficar online e use contas fictícias criadas na sessão.
+1. No painel do Render, crie um Blueprint a partir da branch do GitHub que contém `render.yaml`. O Blueprint configura o serviço gratuito, gera uma `JWT_SECRET` exclusiva e inicializa um SQLite na instância. O Render pode suspender a API após 15 minutos sem tráfego. Suspensões, reinícios e novos deploys apagam os cadastros e pedidos do SQLite. Antes de testar, abra `/api/status`, aguarde a API ficar online e crie uma conta de teste.
 2. Abra `/api/status` na URL HTTPS atribuída pelo Render e confirme que a resposta informa `online`.
 3. Entre no Expo com uma conta que tenha acesso ao projeto TrendLab. No ambiente EAS `preview`, configure a variável pública `EXPO_PUBLIC_API_URL` com a URL HTTPS atribuída pelo Render, incluindo o sufixo `/api`. A chave de assinatura fica no servidor.
 4. Na pasta do projeto, gere o APK com `npx eas-cli@latest build --platform android --profile preview`. Baixe o APK pela página do build e valide cadastro, login e um pedido pelo Android.

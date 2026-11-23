@@ -1,3 +1,4 @@
+import { getProductImage } from '../data/productImages';
 import React, { useState } from 'react';
 import { View, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { Product } from '../types';
@@ -14,13 +15,17 @@ interface ProductCardProps {
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) => {
   const { focusMode, highContrast, darkMode, palette } = useAccessibility();
   const [imageError, setImageError] = useState(false);
+  const currency = { style: 'currency', currency: 'BRL' } as const;
+  const currentPrice = product.price.toLocaleString('pt-BR', currency);
+  const previousPrice = product.originalPrice?.toLocaleString('pt-BR', currency);
+  const priceLabel = 'Preço atual ' + currentPrice + (previousPrice ? '. Preço anterior ' + previousPrice : '');
 
   return (
     <TouchableOpacity
       activeOpacity={0.85}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`Produto: ${product.name}. Categoria: ${product.category}. Preço: ${product.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}. Tamanho recomendado: ${product.recommendedSize}`}
+      accessibilityLabel={`Produto: ${product.name}. Categoria: ${product.category}. ${priceLabel}. Tamanho recomendado: ${product.recommendedSize}`}
       style={[
         styles.card,
         {
@@ -37,9 +42,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
           </View>
         ) : (
           <Image
-            source={{ uri: product.imageUrl }}
+            source={getProductImage(product)}
             style={styles.image}
-            resizeMode="cover"
+            resizeMode="contain"
             onError={() => setImageError(true)}
           />
         )}
@@ -131,11 +136,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
 
         <View style={styles.priceRow}>
           <AccessibleText size="lg" weight="bold" color={palette.accent}>
-            {product.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            {currentPrice}
           </AccessibleText>
-          {!focusMode && product.originalPrice && (
-            <AccessibleText size="xs" color={palette.textSecondary} style={styles.originalPrice}>
-              {product.originalPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          {previousPrice && (
+            <AccessibleText size="xs" color={palette.textSecondary}>
+              Antes <AccessibleText size="xs" color={palette.textSecondary} style={styles.originalPrice}>{previousPrice}</AccessibleText>
             </AccessibleText>
           )}
         </View>
@@ -217,6 +222,7 @@ const styles = StyleSheet.create({
   },
   priceRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'baseline',
     gap: 8,
     marginTop: 4,

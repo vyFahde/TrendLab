@@ -6,9 +6,7 @@ import {
   TextInput,
   TouchableOpacity,
   FlatList,
-  Alert,
   Modal,
-  Platform,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
@@ -88,40 +86,7 @@ export const HomeScreen: React.FC = () => {
     return result;
   }, [products, selectedCategory, selectedSizeFilter, sortOrder, searchQuery]);
 
-  const handleVoiceSearchSimulation = () => {
-    if (Platform.OS === 'web') {
-      setVoiceModalVisible(true);
-      return;
-    }
-    Alert.alert(
-      'Busca por Voz Acessível',
-      'Selecione um comando de voz simulado para filtrar o catálogo:',
-      [
-        {
-          text: '"Calça jeans feminina"',
-          onPress: () => {
-            setSearchQuery('jeans');
-            showToast('Busca por voz: "Calça jeans"', 'info');
-          },
-        },
-        {
-          text: '"Camiseta algodão"',
-          onPress: () => {
-            setSearchQuery('camiseta');
-            showToast('Busca por voz: "Camiseta"', 'info');
-          },
-        },
-        {
-          text: 'Limpar busca',
-          style: 'destructive',
-          onPress: () => {
-            setSearchQuery('');
-            showToast('Busca limpa.', 'info');
-          },
-        },
-      ]
-    );
-  };
+  const handleVoiceSearchSimulation = () => setVoiceModalVisible(true);
 
   const handleClearAllFilters = () => {
     setSelectedCategory('Todas');
@@ -198,7 +163,7 @@ export const HomeScreen: React.FC = () => {
             },
           ]}
           onPress={handleVoiceSearchSimulation}
-          accessibilityLabel="Ativar busca por voz"
+          accessibilityLabel="Abrir busca por voz simulada"
           accessibilityRole="button"
         >
           <Mic size={22} color={highContrast && darkMode ? '#000000' : Colors.white} />
@@ -496,30 +461,33 @@ export const HomeScreen: React.FC = () => {
         onRequestClose={() => setVoiceModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { backgroundColor: palette.surface }]}>
+          <View accessibilityViewIsModal style={[styles.modalSheet, { backgroundColor: palette.surface }]}>
             <View style={styles.modalHeader}>
               <AccessibleText size="lg" weight="bold" color={palette.heading}>
-                🎙️ Busca por Voz Acessível
+                Busca por voz simulada
               </AccessibleText>
               <TouchableOpacity
                 onPress={() => setVoiceModalVisible(false)}
                 style={styles.closeModalBtn}
                 accessibilityRole="button"
+                accessibilityLabel="Fechar busca por voz simulada"
               >
                 <X size={22} color={palette.iconPrimary} />
               </TouchableOpacity>
             </View>
             <AccessibleText size="sm" color={palette.textSecondary} style={styles.voiceModalDesc}>
-              Toque em uma das frases reconhecidas para filtrar o catálogo:
+              Escolha uma frase de exemplo para buscar no catálogo. O microfone fica desligado.
             </AccessibleText>
             <View style={styles.voiceCommandsList}>
               {[
-                { label: '🗣️ "Calça jeans feminina"', term: 'jeans' },
-                { label: '🗣️ "Camiseta algodão"', term: 'camiseta' },
-                { label: '🗣️ "Tênis sem cadarço"', term: 'tênis' },
+                { label: 'Calça jeans', term: 'jeans' },
+                { label: 'Camiseta de algodão', term: 'camiseta' },
+                { label: 'Tênis sem cadarço', term: 'tênis' },
+                { label: 'Limpar busca', term: '' },
               ].map((cmd) => (
                 <TouchableOpacity
-                  key={cmd.term}
+                  key={cmd.label}
+                  accessibilityRole="button"
                   style={[
                     styles.voiceCommandBtn,
                     {
@@ -530,7 +498,6 @@ export const HomeScreen: React.FC = () => {
                   onPress={() => {
                     setSearchQuery(cmd.term);
                     setVoiceModalVisible(false);
-                    showToast(`Busca por voz: "${cmd.term}"`, 'info');
                   }}
                 >
                   <AccessibleText size="sm" weight="bold" color={palette.accent}>

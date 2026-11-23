@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { useUsuarioStore } from '../store/usuario-store';
-import { api } from '../services/api';
+import { api, AuthSession } from '../services/api';
 
 export interface User {
   name: string;
@@ -12,19 +13,22 @@ interface AuthContextData {
   user: User | null;
   registerUser: (name: string, email: string, password: string) => Promise<void>;
   loginUser: (email: string, password: string) => Promise<boolean>;
-  logoutUser: () => void;
+  logoutUser: () => Promise<void>;
   loading: boolean;
 }
 
+const sessionKey = 'trendlab.session';
+const secureOptions = { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY };
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [session, setSession] = useState<{ user: User; expiresAt: number } | null>(null);
+  const [session, setSession] = useState<AuthSession | null>(null);
   const [loading, setLoading] = useState(true);
   const setUsuario = useUsuarioStore((state) => state.setUsuario);
   const hydrateFromStorage = useUsuarioStore((state) => state.hydrateFromStorage);
 
   useEffect(() => {
+    let cancelled = false;
     const initialize = async () => {
       try {
         const keys = await AsyncStorage.getAllKeys();
@@ -32,13 +36,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await AsyncStorage.multiRemove(['@trendlab:active_user', '@trendlab:jwt_token', ...legacyAccounts]);
       } catch {
         console.warn('Não foi possível limpar as credenciais antigas do aparelho.');
-      } finally {
+      }
+
+      try {
         await hydrateFromStorage();
-        setLoading(false);
+        if (!(await SecureStore.isAvailableAsync())) return;
+
+        const raw = await SecureStore.getItemAsync(sessionKey, secureOptions);
+        if (!raw) return;
+
+        const saved = JSON.parse(raw) as AuthSession & { baseUrl?: string };
+        if (saved.baseUrl !== api.getBaseUrl() || !api.getBaseUrl().startsWith('https://') ||
+            typeof saved.jwt !== 'string' || !saved.jwt ||
+            !Number.isFinite(saved.expiresAt) || saved.expiresAt <= Date.now() ||
+            typeof saved.user?.email !== 'string' || typeof saved.user?.username !== 'string') {
+          if (!cancelled) await SecureStore.deleteItemAsync(sessionKey, secureOptions);
+          return;
+        }
+
+        const valid = await api.validateSession(saved.jwt);
+        if (cancelled) return;
+        if (!valid || saved.expiresAt <= Date.now()) {
+          await SecureStore.deleteItemAsync(sessionKey, secureOptions);
+          return;
+        }
+
+        await setUsuario(saved.user.email, saved.user.username, saved.jwt);
+        if (!cancelled) setSession(saved);
+      } catch {
+        console.warn('Não foi possível restaurar a sessão do TrendLab.');
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     };
-    initialize();
-  }, [hydrateFromStorage]);
+    void initialize();
+    return () => { cancelled = true; };
+  }, [hydrateFromStorage, setUsuario]);
 
   useEffect(() => {
     if (!session) return;
@@ -49,11 +82,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearTimeout(timeout);
   }, [session, setUsuario]);
 
-  const openSession = async (auth: Awaited<ReturnType<typeof api.register>>) => {
-    const user = { name: auth.user.username, email: auth.user.email };
-    await setUsuario(user.email, user.name, auth.jwt);
-    if (useUsuarioStore.getState().jwtToken !== auth.jwt) return;
-    setSession({ user, expiresAt: auth.expiresAt });
+  const openSession = async (auth: AuthSession) => {
+    const baseUrl = api.getBaseUrl();
+    try {
+      if (baseUrl.startsWith('https://') && await SecureStore.isAvailableAsync()) {
+        await SecureStore.setItemAsync(sessionKey, JSON.stringify({
+          jwt: auth.jwt,
+          expiresAt: auth.expiresAt,
+          user: { username: auth.user.username, email: auth.user.email },
+          baseUrl,
+        }), secureOptions);
+      }
+    } catch {
+      console.warn('A sessão está disponível apenas enquanto o aplicativo estiver aberto.');
+    }
+    await setUsuario(auth.user.email, auth.user.username, auth.jwt);
+    if (useUsuarioStore.getState().jwtToken === auth.jwt) setSession(auth);
   };
 
   const registerUser = async (name: string, email: string, password: string) => {
@@ -63,18 +107,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginUser = async (email: string, password: string) => {
     const auth = await api.login(email, password);
     if (!auth) return false;
-
     await openSession(auth);
     return true;
   };
 
-  const logoutUser = () => {
+  const logoutUser = async () => {
+    if (await SecureStore.isAvailableAsync()) {
+      await SecureStore.deleteItemAsync(sessionKey, secureOptions);
+    }
     setSession(null);
-    void setUsuario(null);
+    await setUsuario(null);
   };
 
+  const user = session ? { name: session.user.username, email: session.user.email } : null;
   return (
-    <AuthContext.Provider value={{ user: session?.user ?? null, registerUser, loginUser, logoutUser, loading }}>
+    <AuthContext.Provider value={{ user, registerUser, loginUser, logoutUser, loading }}>
       {children}
     </AuthContext.Provider>
   );

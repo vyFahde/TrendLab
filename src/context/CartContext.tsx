@@ -4,8 +4,8 @@ import { Product, CartItem } from '../types';
 interface CartContextData {
   items: CartItem[];
   addToCart: (product: Product, selectedSize: string, selectedColor: string) => void;
-  removeFromCart: (productId: string, selectedSize: string) => void;
-  updateQuantity: (productId: string, selectedSize: string, delta: number) => void;
+  removeFromCart: (item: CartItem) => void;
+  updateQuantity: (item: CartItem, delta: number) => void;
   clearCart: () => void;
   totalItems: number;
   subtotal: number;
@@ -13,45 +13,31 @@ interface CartContextData {
 
 const CartContext = createContext<CartContextData>({} as CartContextData);
 
+function sameVariant(a: CartItem, b: CartItem): boolean {
+  return a.product.id === b.product.id && a.selectedSize === b.selectedSize && a.selectedColor === b.selectedColor;
+}
+
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [items, setItems] = useState<CartItem[]>([]);
 
   const addToCart = (product: Product, selectedSize: string, selectedColor: string) => {
+    const variant = { product, selectedSize, selectedColor, quantity: 1 };
     setItems((currentItems) => {
-      const existingIndex = currentItems.findIndex(
-        (item) => item.product.id === product.id && item.selectedSize === selectedSize
-      );
-
-      if (existingIndex > -1) {
-        const updated = [...currentItems];
-        updated[existingIndex].quantity += 1;
-        return updated;
-      }
-
-      return [...currentItems, { product, selectedSize, selectedColor, quantity: 1 }];
+      if (!currentItems.some((item) => sameVariant(item, variant))) return [...currentItems, variant];
+      return currentItems.map((item) => sameVariant(item, variant)
+        ? { ...item, quantity: item.quantity + 1 }
+        : item);
     });
   };
 
-  const removeFromCart = (productId: string, selectedSize: string) => {
-    setItems((currentItems) =>
-      currentItems.filter(
-        (item) => !(item.product.id === productId && item.selectedSize === selectedSize)
-      )
-    );
+  const removeFromCart = (variant: CartItem) => {
+    setItems((currentItems) => currentItems.filter(item => !sameVariant(item, variant)));
   };
 
-  const updateQuantity = (productId: string, selectedSize: string, delta: number) => {
-    setItems((currentItems) => {
-      return currentItems
-        .map((item) => {
-          if (item.product.id === productId && item.selectedSize === selectedSize) {
-            const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
-          }
-          return item;
-        })
-        .filter(Boolean) as CartItem[];
-    });
+  const updateQuantity = (variant: CartItem, delta: number) => {
+    setItems((currentItems) => currentItems.map(item => sameVariant(item, variant)
+      ? { ...item, quantity: Math.max(1, item.quantity + delta) }
+      : item));
   };
 
   const clearCart = () => {

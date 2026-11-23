@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -9,7 +10,8 @@ import { AccessibilityBar } from '../../components/AccessibilityBar';
 import { CustomButton } from '../../components/CustomButton';
 import { useAccessibility } from '../../context/AccessibilityContext';
 import Colors from '../../theme/colors';
-import { CheckCircle2, Truck, Home } from 'lucide-react-native';
+import { CheckCircle2, Truck, Home, Volume2, VolumeX } from 'lucide-react-native';
+import { useToastStore } from '../../store/useToastStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderSuccess'>;
 
@@ -17,21 +19,50 @@ export const OrderSuccessScreen: React.FC<Props> = ({ route, navigation }) => {
   const { orderId, total } = route.params;
   const { palette, highContrast } = useAccessibility();
 
-  useEffect(() => {
-    try {
-      Speech.speak(
-        `Pedido confirmado com sucesso! Número do pedido: ${orderId}. Valor total: ${total.toFixed(
-          2
-        )} reais.`,
-        { language: 'pt-BR', rate: 0.98 }
-      );
-    } catch {
-      // Silencioso caso TTS não esteja disponível
+  const [isReading, setIsReading] = useState(false);
+  const reading = useRef(false);
+  const showToast = useToastStore((state) => state.showToast);
+
+  const finishReading = useCallback(() => {
+    reading.current = false;
+    setIsReading(false);
+  }, []);
+
+  useFocusEffect(useCallback(() => () => {
+    if (reading.current) {
+      finishReading();
+      void Speech.stop().catch(() => {});
     }
-    return () => {
-      Speech.stop().catch(() => {});
-    };
-  }, [orderId, total]);
+  }, [finishReading]));
+
+  const handleSpeechError = () => {
+    finishReading();
+    showToast('Não foi possível ler o pedido em voz alta.', 'info');
+  };
+
+  const toggleReading = async () => {
+    try {
+      if (reading.current) {
+        await Speech.stop();
+        finishReading();
+        return;
+      }
+
+      reading.current = true;
+      setIsReading(true);
+      const amount = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      const summary = 'Pedido de demonstração ' + orderId + ' registrado. Valor total: ' + amount + '. Nenhuma cobrança será realizada.';
+      Speech.speak(summary, {
+        language: 'pt-BR',
+        rate: 0.98,
+        onDone: finishReading,
+        onStopped: finishReading,
+        onError: handleSpeechError,
+      });
+    } catch {
+      handleSpeechError();
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]}>
@@ -46,7 +77,7 @@ export const OrderSuccessScreen: React.FC<Props> = ({ route, navigation }) => {
         </View>
 
         <AccessibleText size="xs" weight="bold" color={Colors.successEmerald} style={styles.badge}>
-          PAGAMENTO APROVADO ✓
+          PEDIDO DE DEMONSTRAÇÃO
         </AccessibleText>
 
         <AccessibleText size="3xl" weight="bold" color={Colors.deepSpaceNavy} style={styles.title}>
@@ -54,7 +85,7 @@ export const OrderSuccessScreen: React.FC<Props> = ({ route, navigation }) => {
         </AccessibleText>
 
         <AccessibleText size="sm" color={Colors.charcoalSlate} style={styles.subtitle}>
-          Seu pedido foi registrado com sucesso e já está sendo preparado pela nossa equipe.
+          Seu pedido foi registrado. Nenhuma cobrança ou entrega será realizada.
         </AccessibleText>
 
         {/* Card com Detalhes do Pedido */}
@@ -103,10 +134,10 @@ export const OrderSuccessScreen: React.FC<Props> = ({ route, navigation }) => {
             <Truck size={20} color={palette.success} />
             <View style={styles.shippingText}>
               <AccessibleText size="xs" weight="bold" color={Colors.successEmerald}>
-                Frete com Rastreamento
+                Entrega simulada
               </AccessibleText>
               <AccessibleText size="xs" color={Colors.charcoalSlate}>
-                Enviaremos as atualizações do envio para o seu celular.
+                Os dados de entrega ficam no histórico deste pedido.
               </AccessibleText>
             </View>
           </View>
@@ -115,8 +146,15 @@ export const OrderSuccessScreen: React.FC<Props> = ({ route, navigation }) => {
         {/* Ações */}
         <View style={styles.actions}>
           <CustomButton
+            title={isReading ? 'Parar leitura do pedido' : 'Ouvir resumo do pedido'}
+            onPress={toggleReading}
+            variant="outline"
+            icon={isReading ? <VolumeX size={20} color={palette.accent} /> : <Volume2 size={20} color={palette.accent} />}
+            style={styles.mainButton}
+          />
+          <CustomButton
             title="Voltar ao Catálogo"
-            onPress={() => navigation.replace('MainTabs')}
+            onPress={() => navigation.popTo('MainTabs', { screen: 'HomeTab', params: { screen: 'HomeScreen', pop: true } })}
             variant="primary"
             icon={<Home size={20} color={palette.primaryContent} />}
             style={styles.mainButton}
@@ -204,6 +242,7 @@ const styles = StyleSheet.create({
   },
   actions: {
     width: '100%',
+    gap: 12,
   },
   mainButton: {
     width: '100%',

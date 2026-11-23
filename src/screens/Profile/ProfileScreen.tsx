@@ -39,6 +39,12 @@ import {
   Trash2,
 } from 'lucide-react-native';
 
+const paymentLabels: Record<OrderRecord['paymentMethod'], string> = {
+  pix: 'Pix',
+  card: 'Cartão',
+  boleto: 'Boleto',
+};
+
 export const ProfileScreen: React.FC = () => {
   const { user, logoutUser } = useAuth();
   const {
@@ -108,12 +114,6 @@ export const ProfileScreen: React.FC = () => {
   // Solicita permissão da galeria e seleciona uma imagem para o perfil
   const abrirGaleriaPerfil = async () => {
     try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        showToast('Permissão para acessar a galeria negada.', 'error');
-        return;
-      }
-
       const foto = await ImagePicker.launchImageLibraryAsync({
         allowsEditing: true,
         aspect: [4, 3],
@@ -135,9 +135,13 @@ export const ProfileScreen: React.FC = () => {
     }
   };
 
-  const performLogout = () => {
-    logoutUser();
-    showToast('Sessão encerrada.', 'info');
+  const performLogout = async () => {
+    try {
+      await logoutUser();
+      showToast('Sessão encerrada.', 'info');
+    } catch {
+      showToast('Não foi possível encerrar a sessão. Tente novamente.', 'error');
+    }
   };
 
   const handleLogout = () => {
@@ -285,7 +289,7 @@ export const ProfileScreen: React.FC = () => {
                   >
                     <CheckCircle2 size={12} color={palette.success} />
                     <AccessibleText size="xs" weight="bold" color={Colors.successEmerald}>
-                      Aprovado ({ord.paymentMethod.toUpperCase()})
+                      Simulado · {paymentLabels[ord.paymentMethod]}
                     </AccessibleText>
                   </View>
                 </View>
@@ -490,7 +494,7 @@ export const ProfileScreen: React.FC = () => {
                   Endereço: {selectedOrder.address} (CEP: {selectedOrder.zipCode})
                 </AccessibleText>
                 <AccessibleText size="xs" color={Colors.charcoalSlate}>
-                  Pagamento: {selectedOrder.paymentMethod.toUpperCase()} • Data:{' '}
+                  Pagamento simulado: {paymentLabels[selectedOrder.paymentMethod]} • Data:{' '}
                   {selectedOrder.date}
                 </AccessibleText>
 

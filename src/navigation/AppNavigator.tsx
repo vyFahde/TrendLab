@@ -1,7 +1,10 @@
 import React from 'react';
+import { ActivityIndicator, View } from 'react-native';
+import { useAccessibility } from '../context/AccessibilityContext';
+import { AccessibleText } from '../components/AccessibleText';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
-import { LoginScreen, RegisterScreen, CartScreen, OrderSuccessScreen } from '../screens';
+import { LoginScreen, RegisterScreen, OrderSuccessScreen } from '../screens';
 import { TabNavigator } from './TabNavigator';
 import { useAuth } from '../context/AuthContext';
 import Colors from '../theme/colors';
@@ -10,7 +13,17 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const AppNavigator: React.FC = () => {
   const { user, loading } = useAuth();
-  if (loading) return null;
+  const { palette } = useAccessibility();
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, backgroundColor: palette.background }}>
+        <ActivityIndicator color={palette.accent} />
+        <AccessibleText color={palette.textPrimary} accessibilityLiveRegion="polite">
+          Abrindo o TrendLab. Se o servidor estiver iniciando, aguarde até um minuto.
+        </AccessibleText>
+      </View>
+    );
+  }
 
   return (
     <Stack.Navigator
@@ -22,11 +35,6 @@ export const AppNavigator: React.FC = () => {
       {user ? (
         <>
           <Stack.Screen name="MainTabs" component={TabNavigator} />
-          <Stack.Screen
-            name="Checkout"
-            component={CartScreen}
-            options={{ animation: 'slide_from_bottom' }}
-          />
           <Stack.Screen
             name="OrderSuccess"
             component={OrderSuccessScreen}

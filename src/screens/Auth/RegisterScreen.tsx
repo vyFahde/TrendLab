@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -19,7 +19,6 @@ import { AccessibilityBar } from '../../components/AccessibilityBar';
 import { CustomInput } from '../../components/CustomInput';
 import { CustomButton } from '../../components/CustomButton';
 import { useAuth } from '../../context/AuthContext';
-import { useToastStore } from '../../store/useToastStore';
 import { useAccessibility } from '../../context/AccessibilityContext';
 import Colors from '../../theme/colors';
 import { ArrowLeft, UserPlus } from 'lucide-react-native';
@@ -46,7 +45,7 @@ const registerValidationSchema = Yup.object().shape({
 
 export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const { registerUser } = useAuth();
-  const showToast = useToastStore((state) => state.showToast);
+  const [registerError, setRegisterError] = useState<string | null>(null);
   const { palette, highContrast } = useAccessibility();
 
   const handleRegisterSubmit = async (values: {
@@ -54,10 +53,11 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     email: string;
     senha: string;
   }) => {
+    setRegisterError(null);
     try {
       await registerUser(values.nome.trim(), values.email.trim(), values.senha);
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Não foi possível salvar o cadastro.', 'error');
+      setRegisterError(error instanceof Error ? error.message : 'Não foi possível salvar o cadastro. Tente novamente.');
     }
   };
 
@@ -144,7 +144,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                   <CustomInput
                     label="Senha"
                     required
-                    placeholder="Mínimo 6 dígitos"
+                    placeholder="Mínimo 6 caracteres"
                     isPassword
                     value={values.senha}
                     onChangeText={handleChange('senha')}
@@ -171,6 +171,18 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                     )}
                   />
 
+                  {registerError && (
+                    <View style={{ marginBottom: 12 }} accessibilityLiveRegion="assertive" accessibilityRole="alert">
+                      <AccessibleText size="sm" weight="bold" color={palette.danger}>
+                        {registerError}
+                      </AccessibleText>
+                    </View>
+                  )}
+                  {isSubmitting && (
+                    <AccessibleText size="xs" color={palette.textSecondary} accessibilityLiveRegion="polite">
+                      Enviando cadastro. Se o servidor estiver iniciando, isso pode levar até um minuto.
+                    </AccessibleText>
+                  )}
                   <CustomButton
                     title="Concluir Cadastro"
                     onPress={() => handleSubmit()}

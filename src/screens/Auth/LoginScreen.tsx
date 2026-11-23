@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Alert, TouchableWithoutFeedback, Keyboard, } from 'react-native';
+import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, TouchableWithoutFeedback, Keyboard, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Formik } from 'formik';
@@ -48,16 +48,10 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
         const errorMsg =
           'E-mail não cadastrado ou senha incorreta. Verifique suas credenciais ou crie uma nova conta.';
         setLoginError(errorMsg);
-        if (Platform.OS !== 'web') {
-          Alert.alert('Falha no Login', errorMsg);
-        }
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Não foi possível realizar o login.';
       setLoginError(errorMsg);
-      if (Platform.OS !== 'web') {
-        Alert.alert('Erro', errorMsg);
-      }
     }
   };
 

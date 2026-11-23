@@ -4,7 +4,6 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { AccessibilityProvider } from './src/context/AccessibilityContext';
-import { CartProvider } from './src/context/CartContext';
 import { AuthProvider } from './src/context/AuthContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { AccessibleToast } from './src/components/AccessibleToast';
@@ -17,17 +16,17 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <AccessibilityProvider>
-          <CartProvider>
-            <View style={[styles.outerRoot, isDesktopWeb && styles.desktopWebBackdrop]}>
-              <View style={[styles.appWrapper, isDesktopWeb && styles.mobilePhoneFrame]}>
+          <View style={[styles.outerRoot, isDesktopWeb && styles.desktopWebBackdrop]}>
+            <View style={[styles.appWrapper, isDesktopWeb && styles.mobilePhoneFrame]}>
+              <View style={styles.outerRoot}>
                 <NavigationContainer>
                   <StatusBar style="light" />
                   <AppNavigator />
-                  <AccessibleToast />
                 </NavigationContainer>
               </View>
+              <AccessibleToast />
             </View>
-          </CartProvider>
+          </View>
         </AccessibilityProvider>
       </AuthProvider>
     </SafeAreaProvider>

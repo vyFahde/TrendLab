@@ -2,12 +2,12 @@
   "expo": {
     "name": "TrendLab",
     "slug": "trendlab",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/branding/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
@@ -15,36 +15,32 @@
     "android": {
       "package": "com.vyfahde.trendlab",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#22164D",
+        "foregroundImage": "./assets/branding/android-foreground.png",
+        "monochromeImage": "./assets/branding/android-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "permissions": [
+      "blockedPermissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.VIBRATE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ]
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
     "plugins": [
+      ["expo-secure-store", { "faceIDPermission": false }],
       [
         "expo-image-picker",
         {
-          "photosPermission": "O TrendLab precisa acessar sua galeria para definir sua foto de perfil ou usar o Provador Virtual.",
-          "cameraPermission": "O TrendLab precisa acessar sua câmera para capturar fotos no Provador Virtual e no seu perfil."
+          "photosPermission": "O TrendLab usa a galeria para selecionar sua foto de perfil.",
+          "cameraPermission": "O TrendLab usa a câmera para tirar sua foto de perfil.",
+          "microphonePermission": false
         }
       ],
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "O TrendLab utiliza sua localização para preencher automaticamente seu endereço de entrega no checkout.",
           "locationWhenInUsePermission": "O TrendLab utiliza sua localização para preencher automaticamente seu endereço de entrega no checkout."
         }
       ]

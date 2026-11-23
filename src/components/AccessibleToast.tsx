@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useToastStore } from '../store/useToastStore';
 import { AccessibleText } from './AccessibleText';
 import Colors from '../theme/colors';
@@ -35,7 +36,8 @@ export const AccessibleToast: React.FC = () => {
   };
 
   return (
-    <View
+    <SafeAreaView
+      edges={['bottom', 'left', 'right']}
       style={[styles.toastContainer, { backgroundColor: getBackgroundColor() }]}
       accessibilityRole="alert"
       accessibilityLiveRegion="polite"
@@ -54,28 +56,19 @@ export const AccessibleToast: React.FC = () => {
       >
         <X size={18} color={Colors.white} />
       </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   toastContainer: {
-    position: 'absolute',
-    bottom: 92,
-    left: 16,
-    right: 16,
     borderRadius: 12,
+    flexShrink: 0,
     paddingVertical: 12,
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    elevation: 6,
-    shadowColor: Colors.deepSpaceNavy,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    zIndex: 9999,
   },
   contentRow: {
     flexDirection: 'row',

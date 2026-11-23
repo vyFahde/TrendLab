@@ -9,9 +9,10 @@ import {
   LayoutChangeEvent,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { getProductImage, hasVariantPhoto } from '../../data/productImages';
 import * as Speech from 'expo-speech';
-import { HomeStackParamList } from '../../types';
+import { HomeStackParamList, TabParamList } from '../../types';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AccessibleText } from '../../components/AccessibleText';
 import { AccessibilityBar } from '../../components/AccessibilityBar';
@@ -41,9 +42,8 @@ const ZOOM_SCALE = 2.6;
 
 export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { product } = route.params;
-  const rootNavigation = useNavigation<any>();
   const { addToCart } = useCart();
-  const { focusMode, highContrast, darkMode, palette } = useAccessibility();
+  const { highContrast, darkMode, palette } = useAccessibility();
   const { fitProfile } = useUsuarioStore();
   const { showToast } = useToastStore();
 
@@ -57,7 +57,12 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     : product.recommendedSize;
 
   const [selectedSize, setSelectedSize] = useState<string>(effectiveIdealSize);
-  const [selectedColor, setSelectedColor] = useState<string>(product.colors[0].name);
+  const [selectedColor, setSelectedColor] = useState<string>(product.colors[0]?.name ?? '');
+  const imageSource = getProductImage(product, selectedColor);
+  const currency = { style: 'currency', currency: 'BRL' } as const;
+  const currentPrice = product.price.toLocaleString('pt-BR', currency);
+  const previousPrice = product.originalPrice?.toLocaleString('pt-BR', currency);
+  const hasSelectedColorPhoto = hasVariantPhoto(product, selectedColor);
   const [isSuperZoom, setIsSuperZoom] = useState<boolean>(false);
   const [isDraggingLens, setIsDraggingLens] = useState<boolean>(false);
   const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({
@@ -153,10 +158,6 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const handleAddToCart = () => {
     addToCart(product, selectedSize, selectedColor);
     setAddedFeedback(true);
-    showToast(
-      `✓ ${product.name} (Tam ${selectedSize}) adicionado à sacola!`,
-      'success'
-    );
     if (feedbackTimeoutRef.current) {
       clearTimeout(feedbackTimeoutRef.current);
     }
@@ -167,7 +168,7 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const handleBuyNow = () => {
     addToCart(product, selectedSize, selectedColor);
-    rootNavigation.navigate('Checkout');
+    navigation.getParent<BottomTabNavigationProp<TabParamList>>()?.navigate('CartTab');
   };
 
   return (
@@ -250,9 +251,12 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             </View>
           ) : (
             <Image
-              source={{ uri: product.imageUrl }}
+              key={selectedColor}
+              source={imageSource}
+              accessible
+              accessibilityLabel={hasSelectedColorPhoto ? `${product.name} na cor ${selectedColor}` : `Foto de referência de ${product.name}`}
               style={styles.image}
-              resizeMode="cover"
+              resizeMode="contain"
               onError={() => setImageError(true)}
             />
           )}
@@ -271,8 +275,8 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
               ]}
             >
               <Image
-                source={{ uri: product.imageUrl }}
-                resizeMode="cover"
+                source={imageSource}
+                resizeMode="contain"
                 style={{
                   position: 'absolute',
                   width: containerSize.width * ZOOM_SCALE,
@@ -314,6 +318,12 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             </TouchableOpacity>
           )}
         </View>
+
+        {(!imageError && selectedColor) && (
+          <AccessibleText size="xs" color={palette.textSecondary} style={{ paddingHorizontal: 16, marginTop: 6 }}>
+            {hasSelectedColorPhoto ? `Imagem ilustrativa · ${selectedColor}` : 'Foto de referência · sem imagem específica desta cor'}
+          </AccessibleText>
+        )}
 
         {/* Controles Assistivos da Lupa quando o Super Zoom está ativo */}
         {isSuperZoom && !imageError && (
@@ -397,14 +407,11 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
           <View style={styles.priceRow}>
             <AccessibleText size="3xl" weight="bold" color={palette.accent}>
-              {product.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              {currentPrice}
             </AccessibleText>
-            {product.originalPrice && !focusMode && (
-              <AccessibleText size="base" color={palette.textSecondary} style={styles.originalPrice}>
-                {product.originalPrice.toLocaleString('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL',
-                })}
+            {previousPrice && (
+              <AccessibleText size="base" color={palette.textSecondary}>
+                Antes <AccessibleText size="base" color={palette.textSecondary} style={styles.originalPrice}>{previousPrice}</AccessibleText>
               </AccessibleText>
             )}
           </View>
@@ -435,7 +442,7 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             </AccessibleText>
             <TouchableOpacity
               style={styles.openFittingRoomLink}
-              onPress={() => rootNavigation.navigate('FittingRoomTab')}
+              onPress={() => navigation.getParent<BottomTabNavigationProp<TabParamList>>()?.navigate('FittingRoomTab')}
               accessibilityRole="button"
               accessibilityLabel="Abrir Provador Virtual para ajustar medidas"
             >
@@ -513,7 +520,11 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
                         borderWidth: isSelected || highContrast ? 2.5 : 1.5,
                       },
                     ]}
-                    onPress={() => setSelectedColor(c.name)}
+                    onPress={() => {
+                      setImageError(false);
+                      setSelectedColor(c.name);
+                    }}
+                    accessibilityState={{ selected: isSelected }}
                     accessibilityRole="button"
                     accessibilityLabel={`Cor ${c.name}, ${
                       isSelected ? 'selecionada' : 'disponível'
@@ -556,7 +567,7 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
           {/* Feedback Visual de Adicionado */}
           {addedFeedback && (
-            <View style={styles.feedbackBanner}>
+            <View style={styles.feedbackBanner} accessibilityLiveRegion="polite" accessibilityRole="alert">
               <Check size={20} color={Colors.white} />
               <AccessibleText size="sm" weight="bold" color={Colors.white}>
                 Item adicionado à sua sacola com sucesso!
@@ -579,7 +590,7 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             />
 
             <CustomButton
-              title="Comprar Agora (1 Clique)"
+              title="Comprar agora"
               onPress={handleBuyNow}
               variant="success"
               icon={
@@ -735,6 +746,7 @@ const styles = StyleSheet.create({
   },
   priceRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'baseline',
     gap: 12,
     marginBottom: 16,

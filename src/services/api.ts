@@ -62,7 +62,7 @@ async function fetchWithTimeout(
   }
 }
 
-interface AuthSession {
+export interface AuthSession {
   jwt: string;
   expiresAt: number;
   user: { username: string; email: string };
@@ -78,7 +78,7 @@ async function authenticate(route: string, credentials: Record<string, string>):
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(credentials),
-    }, 8000);
+    }, 65_000);
   } catch {
     throw new Error('Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.');
   }
@@ -173,9 +173,25 @@ export const api = {
       password,
     });
     if (response.status === 429) throw new Error('Muitas tentativas. Aguarde um minuto e tente novamente.');
-    if (response.status === 409) throw new Error('Já existe uma conta com este e-mail.');
-    if (!response.ok) throw new Error('Não foi possível concluir o cadastro. Verifique os dados e tente novamente.');
+    if (response.status === 409) throw new Error('Já existe uma conta com este e-mail. Volte à tela de login para entrar.');
+    if (!response.ok) {
+      const message = response.status >= 500
+        ? 'O servidor não concluiu o cadastro. Aguarde um momento e tente novamente.'
+        : 'Confira os dados do cadastro e tente novamente.';
+      throw new Error(message);
+    }
     return readSession(response);
+  },
+
+  validateSession: async (jwt: string): Promise<boolean> => {
+    const response = await fetchWithTimeout(`${currentBaseUrl}/pedidos`, {
+      headers: { Authorization: `Bearer ${jwt}` },
+    }, 65_000);
+    if (response.status === 401 || response.status === 403) return false;
+    if (!response.ok) throw new Error('Não foi possível verificar a sessão.');
+    const body = await response.json();
+    if (!Array.isArray(body?.data)) throw new Error('Resposta inválida ao verificar a sessão.');
+    return true;
   },
 
   getProducts: async (

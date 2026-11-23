@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TabParamList } from '../types';
 import { CartScreen, ProfileScreen, FittingRoomScreen } from '../screens';
 import { HomeStackNavigator } from './HomeStackNavigator';
-import { useCart } from '../context/CartContext';
+import { CartProvider, useCart } from '../context/CartContext';
 import { useAccessibility } from '../context/AccessibilityContext';
 import { useUsuarioStore } from '../store/usuario-store';
 import { api } from '../services/api';
@@ -82,7 +82,8 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigat
           <TouchableOpacity
             key={route.key}
             accessibilityRole="tab"
-            accessibilityState={isFocused ? { selected: true } : {}}
+            accessibilityState={{ selected: isFocused }}
+            aria-selected={isFocused}
             accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
             onPress={onPress}
             onLongPress={onLongPress}
@@ -131,7 +132,13 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigat
   );
 };
 
-export const TabNavigator: React.FC = () => {
+export const TabNavigator: React.FC = () => (
+  <CartProvider>
+    <ShopTabs />
+  </CartProvider>
+);
+
+const ShopTabs: React.FC = () => {
   const { totalItems } = useCart();
 
   return (
@@ -164,7 +171,7 @@ export const TabNavigator: React.FC = () => {
         component={CartScreen}
         options={{
           tabBarLabel: 'Sacola',
-          tabBarAccessibilityLabel: totalItems > 0 ? `Sacola, ${totalItems} itens` : 'Sacola',
+          tabBarAccessibilityLabel: totalItems > 0 ? `Sacola, ${totalItems} ${totalItems === 1 ? 'item' : 'itens'}` : 'Sacola',
           tabBarIcon: ({ color, size }) => <ShoppingBag size={size} color={color} />,
         }}
       />

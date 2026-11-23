@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { Platform, ToastAndroid } from 'react-native';
 
 export type ToastType = 'success' | 'error' | 'info';
 
@@ -19,14 +18,6 @@ export const useToastStore = create<ToastState>((set) => ({
   type: 'success',
 
   showToast: (message, type = 'success') => {
-    if (Platform.OS === 'android') {
-      try {
-        ToastAndroid.showWithGravity(message, ToastAndroid.SHORT, ToastAndroid.BOTTOM);
-      } catch {
-        ToastAndroid.show(message, ToastAndroid.SHORT);
-      }
-    }
-
     if (toastTimer) {
       clearTimeout(toastTimer);
     }

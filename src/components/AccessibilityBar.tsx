@@ -11,6 +11,8 @@ import {
   EyeOff,
   Sparkles,
   SlidersHorizontal,
+  ChevronDown,
+  ChevronUp,
   Volume2,
   VolumeX,
   Wifi,
@@ -31,6 +33,8 @@ export const AccessibilityBar: React.FC = () => {
     toggleHighContrast,
     darkMode,
     toggleDarkMode,
+    quickBarExpanded,
+    toggleQuickBar,
   } = useAccessibility();
   const { fitProfile } = useUsuarioStore();
   const { showToast } = useToastStore();
@@ -107,7 +111,14 @@ export const AccessibilityBar: React.FC = () => {
       ]}
     >
       <View style={styles.titleRow}>
-        <View style={styles.titleLeft}>
+        <TouchableOpacity
+          style={styles.titleToggle}
+          onPress={toggleQuickBar}
+          accessibilityRole="button"
+          accessibilityLabel={quickBarExpanded ? 'Recolher acessibilidade rápida' : 'Expandir acessibilidade rápida'}
+          accessibilityState={{ expanded: quickBarExpanded }}
+          aria-expanded={quickBarExpanded}
+        >
           <SlidersHorizontal size={14} color={highContrast ? '#FACC15' : Colors.white} />
           <AccessibleText
             size="xs"
@@ -117,7 +128,12 @@ export const AccessibilityBar: React.FC = () => {
           >
             Acessibilidade Rápida
           </AccessibleText>
-        </View>
+          {quickBarExpanded ? (
+            <ChevronUp size={16} color={highContrast ? '#FACC15' : Colors.white} />
+          ) : (
+            <ChevronDown size={16} color={highContrast ? '#FACC15' : Colors.white} />
+          )}
+        </TouchableOpacity>
 
         {/* Indicador Nativo de Rede / Wi-Fi (expo-network) */}
         <TouchableOpacity
@@ -143,120 +159,124 @@ export const AccessibilityBar: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.controlsRow}>
-        {/* Controle de Fonte (A- / A+) */}
-        <View style={[styles.fontControls, highContrast && styles.highContrastPillBorder]}>
-          <TouchableOpacity
-            style={styles.pillButton}
-            onPress={decreaseFont}
-            accessibilityLabel="Diminuir tamanho da fonte"
-            accessibilityRole="button"
-          >
-            <AccessibleText size="xs" weight="bold" color={Colors.white}>
-              A-
-            </AccessibleText>
-          </TouchableOpacity>
+      {quickBarExpanded && (
+        <View style={styles.controlsRow}>
+          {/* Controle de Fonte (A- / A+) */}
+          <View style={[styles.fontControls, highContrast && styles.highContrastPillBorder]}>
+            <TouchableOpacity
+              style={styles.pillButton}
+              onPress={decreaseFont}
+              accessibilityLabel="Diminuir tamanho da fonte"
+              accessibilityRole="button"
+            >
+              <AccessibleText size="xs" weight="bold" color={Colors.white}>
+                A-
+              </AccessibleText>
+            </TouchableOpacity>
 
-          <View style={styles.scaleIndicator}>
-            <AccessibleText size="xs" weight="bold" color={highContrast ? '#FACC15' : Colors.white}>
-              {Math.round(fontScale * 100)}%
-            </AccessibleText>
+            <View style={styles.scaleIndicator}>
+              <AccessibleText size="xs" weight="bold" color={highContrast ? '#FACC15' : Colors.white}>
+                {Math.round(fontScale * 100)}%
+              </AccessibleText>
+            </View>
+
+            <TouchableOpacity
+              style={styles.pillButton}
+              onPress={increaseFont}
+              accessibilityLabel="Aumentar tamanho da fonte"
+              accessibilityRole="button"
+            >
+              <AccessibleText size="xs" weight="bold" color={Colors.white}>
+                A+
+              </AccessibleText>
+            </TouchableOpacity>
           </View>
 
+          {/* Modo Foco */}
           <TouchableOpacity
-            style={styles.pillButton}
-            onPress={increaseFont}
-            accessibilityLabel="Aumentar tamanho da fonte"
+            style={[
+              styles.toggleButton,
+              focusMode && styles.toggleButtonActive,
+              highContrast && styles.highContrastPillBorder,
+            ]}
+            onPress={toggleFocusMode}
+            accessibilityLabel="Alternar Modo Foco para reduzir distrações visuais"
             accessibilityRole="button"
           >
-            <AccessibleText size="xs" weight="bold" color={Colors.white}>
-              A+
+            {focusMode ? (
+              <Sparkles size={13} color={Colors.white} />
+            ) : (
+              <EyeOff size={13} color={Colors.white} />
+            )}
+            <AccessibleText size="xs" weight="semiBold" color={Colors.white}>
+              {focusMode ? 'Foco' : 'Foco'}
             </AccessibleText>
           </TouchableOpacity>
-        </View>
 
-        {/* Modo Foco */}
-        <TouchableOpacity
-          style={[
-            styles.toggleButton,
-            focusMode && styles.toggleButtonActive,
-            highContrast && styles.highContrastPillBorder,
-          ]}
-          onPress={toggleFocusMode}
-          accessibilityLabel="Alternar Modo Foco para reduzir distrações visuais"
-          accessibilityRole="button"
-        >
-          {focusMode ? (
-            <Sparkles size={13} color={Colors.white} />
-          ) : (
-            <EyeOff size={13} color={Colors.white} />
-          )}
-          <AccessibleText size="xs" weight="semiBold" color={Colors.white}>
-            {focusMode ? 'Foco' : 'Foco'}
-          </AccessibleText>
-        </TouchableOpacity>
-
-        {/* Alto Contraste AAA */}
-        <TouchableOpacity
-          style={[
-            styles.toggleButton,
-            highContrast && styles.toggleButtonHighContrastActive,
-            highContrast && styles.highContrastPillBorder,
-          ]}
-          onPress={toggleHighContrast}
-          accessibilityLabel="Alternar Alto Contraste AAA"
-          accessibilityRole="button"
-        >
-          <Contrast size={13} color={highContrast ? '#000000' : Colors.white} />
-          <AccessibleText
-            size="xs"
-            weight="bold"
-            color={highContrast ? '#000000' : Colors.white}
+          {/* Alto Contraste AAA */}
+          <TouchableOpacity
+            style={[
+              styles.toggleButton,
+              highContrast && styles.toggleButtonHighContrastActive,
+              highContrast && styles.highContrastPillBorder,
+            ]}
+            onPress={toggleHighContrast}
+            accessibilityLabel="Alternar alto contraste"
+            accessibilityRole="button"
+            accessibilityState={{ selected: highContrast }}
+            aria-pressed={highContrast}
           >
-            AAA
-          </AccessibleText>
-        </TouchableOpacity>
+            <Contrast size={13} color={highContrast ? '#000000' : Colors.white} />
+            <AccessibleText
+              size="xs"
+              weight="bold"
+              color={highContrast ? '#000000' : Colors.white}
+            >
+              AAA
+            </AccessibleText>
+          </TouchableOpacity>
 
-        {/* Modo Escuro */}
-        <TouchableOpacity
-          style={[
-            styles.toggleButton,
-            darkMode && styles.toggleButtonDarkActive,
-            highContrast && styles.highContrastPillBorder,
-          ]}
-          onPress={toggleDarkMode}
-          accessibilityLabel={darkMode ? 'Desativar Modo Escuro' : 'Ativar Modo Escuro'}
-          accessibilityRole="button"
-        >
-          {darkMode ? (
-            <Sun size={14} color="#FACC15" />
-          ) : (
-            <Moon size={14} color={Colors.white} />
-          )}
-        </TouchableOpacity>
+          {/* Modo Escuro */}
+          <TouchableOpacity
+            style={[
+              styles.toggleButton,
+              darkMode && styles.toggleButtonDarkActive,
+              highContrast && styles.highContrastPillBorder,
+            ]}
+            onPress={toggleDarkMode}
+            accessibilityLabel={darkMode ? 'Desativar Modo Escuro' : 'Ativar Modo Escuro'}
+            accessibilityRole="button"
+          >
+            {darkMode ? (
+              <Sun size={14} color="#FACC15" />
+            ) : (
+              <Moon size={14} color={Colors.white} />
+            )}
+          </TouchableOpacity>
 
-        {/* Atalho para Leitor de Áudio Nativo (expo-speech) */}
-        <TouchableOpacity
-          style={[
-            styles.toggleButton,
-            isSpeaking && styles.toggleButtonSpeechActive,
-            highContrast && styles.highContrastPillBorder,
-          ]}
-          onPress={handleToggleSpeech}
-          accessibilityLabel={
-            isSpeaking
-              ? 'Parar leitura em voz alta'
-              : 'Ativar leitor de áudio nativo para resumo de acessibilidade'
-          }
-          accessibilityRole="button"
-        >
-          {isSpeaking ? (
-            <VolumeX size={14} color={Colors.white} />
-          ) : (
-            <Volume2 size={14} color={Colors.white} />
-          )}
-        </TouchableOpacity>
-      </View>
+          {/* Atalho para Leitor de Áudio Nativo (expo-speech) */}
+          <TouchableOpacity
+            style={[
+              styles.toggleButton,
+              isSpeaking && styles.toggleButtonSpeechActive,
+              highContrast && styles.highContrastPillBorder,
+            ]}
+            onPress={handleToggleSpeech}
+            accessibilityLabel={
+              isSpeaking
+                ? 'Parar leitura em voz alta'
+                : 'Ativar leitor de áudio nativo para resumo de acessibilidade'
+            }
+            accessibilityRole="button"
+          >
+            {isSpeaking ? (
+              <VolumeX size={14} color={Colors.white} />
+            ) : (
+              <Volume2 size={14} color={Colors.white} />
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 };
@@ -265,8 +285,7 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: Colors.deepSpaceNavy,
     paddingHorizontal: 10,
-    paddingTop: 6,
-    paddingBottom: 8,
+    paddingVertical: 2,
     borderBottomWidth: 1,
     borderBottomColor: '#312E81',
   },
@@ -283,18 +302,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    gap: 8,
   },
-  titleLeft: {
+  titleToggle: {
+    minHeight: 44,
+    flex: 1,
+    paddingVertical: 4,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
   barTitle: {
+    flexShrink: 1,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
   networkBadge: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
@@ -311,12 +335,16 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
   },
   controlsRow: {
+    paddingTop: 4,
+    paddingBottom: 6,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: 5,
   },
   fontControls: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
@@ -334,6 +362,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
   },
   toggleButton: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -14,9 +14,11 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { getProductImage } from '../../data/productImages';
 import * as Location from 'expo-location';
-import { RootStackParamList } from '../../types';
+import { CartItem, OrderRecord, RootStackParamList, TabParamList } from '../../types';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AccessibleText } from '../../components/AccessibleText';
 import { AccessibilityBar } from '../../components/AccessibilityBar';
@@ -25,7 +27,6 @@ import { CustomButton } from '../../components/CustomButton';
 import { useCart } from '../../context/CartContext';
 import { useAccessibility } from '../../context/AccessibilityContext';
 import { useUsuarioStore } from '../../store/usuario-store';
-import { useToastStore } from '../../store/useToastStore';
 import Colors from '../../theme/colors';
 import {
   Trash2,
@@ -38,18 +39,16 @@ import {
   FileText,
   Truck,
   CheckCircle2,
-  ArrowLeft,
   MapPin,
   Zap,
   X,
 } from 'lucide-react-native';
 
 export const CartScreen: React.FC = () => {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation = useNavigation<BottomTabNavigationProp<TabParamList, 'CartTab'>>();
   const { items, removeFromCart, updateQuantity, clearCart, subtotal, totalItems } = useCart();
   const { palette, highContrast } = useAccessibility();
   const { userData, addOrder } = useUsuarioStore();
-  const { showToast } = useToastStore();
 
   // Etapa do Checkout: 1 = Revisão da Sacola, 2 = Formulário de Entrega e Pagamento
   const [checkoutStep, setCheckoutStep] = useState<1 | 2>(1);
@@ -61,7 +60,9 @@ export const CartScreen: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<'pix' | 'card' | 'boleto'>('pix');
   const [isFinishing, setIsFinishing] = useState(false);
   const [isLocatingGps, setIsLocatingGps] = useState(false);
-  const [gpsCoordinatesLabel, setGpsCoordinatesLabel] = useState<string | null>(null);
+  const [gpsFeedback, setGpsFeedback] = useState<{ message: string; error: boolean } | null>(null);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const submittingOrder = useRef(false);
 
   useEffect(() => {
     if (userData?.name && !receiverName) {
@@ -84,108 +85,76 @@ export const CartScreen: React.FC = () => {
   const [formSubmitted, setFormSubmitted] = useState(false);
 
   const handleGoToCatalog = () => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    } else {
-      try {
-        (navigation as any).navigate('MainTabs', {
-          screen: 'HomeTab',
-          params: { screen: 'HomeScreen' },
-        });
-      } catch {
-        (navigation as any).navigate('MainTabs');
-      }
-    }
+    navigation.navigate('HomeTab', { screen: 'HomeScreen', pop: true });
   };
 
-  const handleConfirmRemove = (productId: string, selectedSize: string, productName: string) => {
+  const handleConfirmRemove = (item: CartItem) => {
+    const description = `${item.product.name}, tamanho ${item.selectedSize}, ${item.selectedColor}`;
+    const question = `Remover ${description} da sacola?`;
     if (Platform.OS === 'web') {
-      const ok =
-        typeof window !== 'undefined'
-          ? window.confirm(`Deseja realmente remover "${productName}" da sacola?`)
-          : true;
-      if (ok) {
-        removeFromCart(productId, selectedSize);
-        showToast(`REMOVIDO: ${productName}`, 'info');
-      }
+      if (window.confirm(question)) removeFromCart(item);
       return;
     }
 
-    Alert.alert('Remover', `Deseja realmente remover "${productName}" da sacola?`, [
-      {
-        text: 'SIM',
-        style: 'destructive',
-        onPress: () => {
-          removeFromCart(productId, selectedSize);
-          showToast(`REMOVIDO: ${productName}`, 'info');
-        },
-      },
-      { text: 'NÃO', style: 'cancel' },
+    Alert.alert('Remover item', question, [
+      { text: 'Manter item', style: 'cancel' },
+      { text: 'Remover', style: 'destructive', onPress: () => removeFromCart(item) },
     ]);
   };
 
-  // Obtém coordenadas via GPS e converte em endereço via geocodificação reversa
   const handleFetchGpsLocation = async () => {
     setIsLocatingGps(true);
+    setGpsFeedback(null);
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        showToast('Permissão de localização (GPS) negada.', 'error');
-        setIsLocatingGps(false);
+        setGpsFeedback({ message: 'Permissão de localização negada. Preencha o endereço e o CEP manualmente.', error: true });
         return;
       }
 
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
+      const lookup = async () => {
+        const { coords } = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const [place] = await Location.reverseGeocodeAsync({
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+        });
+        return place;
+      };
+      const deadline = new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error('Tempo de localização excedido.')), 12_000);
       });
-      const { latitude, longitude } = loc.coords;
-      setGpsCoordinatesLabel(`Lat: ${latitude.toFixed(4)}, Long: ${longitude.toFixed(4)}`);
-
-      let detectedZip = '';
-      let detectedAddress = '';
-
-      try {
-        const places = await Location.reverseGeocodeAsync({ latitude, longitude });
-        if (places && places.length > 0) {
-          const p = places[0];
-          if (p.postalCode) {
-            detectedZip = formatZipCode(p.postalCode);
-          }
-          const streetPart = [p.street, p.streetNumber || 'S/N'].filter(Boolean).join(', ');
-          const districtPart = [p.district || p.subregion, p.city, p.region]
-            .filter(Boolean)
-            .join(' - ');
-          detectedAddress = [streetPart, districtPart].filter(Boolean).join(' • ');
-        }
-      } catch {
-        // Fallback para geocodificação reversa na Web caso reverseGeocodeAsync não retorne
+      const place = await Promise.race([lookup(), deadline]);
+      const detectedZip = place?.postalCode ? formatZipCode(place.postalCode) : '';
+      if (!place?.street || !place.streetNumber || detectedZip.length !== 9) {
+        setGpsFeedback({ message: 'O GPS não encontrou endereço e CEP completos. Preencha os campos manualmente.', error: true });
+        return;
       }
 
-      if (!detectedAddress || detectedAddress.length < 5) {
-        detectedAddress = `Av. Fernandes Lima, 1500 - Farol (GPS: ${latitude.toFixed(
-          3
-        )}, ${longitude.toFixed(3)})`;
-      }
-      if (!detectedZip || detectedZip.replace(/\D/g, '').length !== 8) {
-        detectedZip = '57051-190';
-      }
-
-      setZipCode(detectedZip);
-      setAddress(detectedAddress);
+      const street = [place.street, place.streetNumber].filter(Boolean).join(', ');
+      const locality = [place.district, place.city, place.region].filter(Boolean).join(' - ');
+      const detectedAddress = [street, locality].filter(Boolean).join(' • ');
+      setZipCode(current => current === zipCode ? detectedZip : current);
+      setAddress(current => current === address ? detectedAddress : current);
       setZipCodeError('');
       setAddressError('');
-      showToast('📍 Endereço e CEP preenchidos via GPS com sucesso!', 'success');
+      setGpsFeedback({
+        message: 'Localização encontrada. Confira os dados antes de continuar.',
+        error: false,
+      });
     } catch {
-      // Fallback caso o GPS do emulador esteja desligado
-      setZipCode('57051-190');
-      setAddress('Av. Cônego Machado, 918 - Farol, Maceió - AL');
-      setZipCodeError('');
-      setAddressError('');
-      showToast('📍 Localização estimada preenchida automaticamente!', 'info');
+      setGpsFeedback({ message: 'Não foi possível localizar seu endereço. Preencha o endereço e o CEP manualmente.', error: true });
     } finally {
+      if (timeout) clearTimeout(timeout);
       setIsLocatingGps(false);
     }
   };
+
+  const gpsNotice = gpsFeedback && (
+    <AccessibleText size="sm" color={gpsFeedback.error ? palette.danger : palette.textSecondary} accessibilityLiveRegion="polite">
+      {gpsFeedback.message}
+    </AccessibleText>
+  );
 
   const validateReceiverName = (val: string) => {
     if (!val.trim()) return 'Informe o nome completo do destinatário.';
@@ -206,71 +175,63 @@ export const CartScreen: React.FC = () => {
     return '';
   };
 
-  const completeOrderWithMethod = (chosenPayment: 'pix' | 'card' | 'boleto') => {
+  const completeOrderWithMethod = async (chosenPayment: OrderRecord['paymentMethod']) => {
+    if (submittingOrder.current || !items.length) return;
+    setOrderError(null);
     setFormSubmitted(true);
-    const nErr = validateReceiverName(receiverName);
-    const zErr = validateZipCode(zipCode || '57051-190');
-    const aErr = validateAddress(address);
+    const nameError = validateReceiverName(receiverName);
+    const cepError = validateZipCode(zipCode);
+    const streetError = validateAddress(address);
+    setReceiverNameError(nameError);
+    setZipCodeError(cepError);
+    setAddressError(streetError);
+    if (nameError || cepError || streetError) return;
 
-    setReceiverNameError(nErr);
-    setZipCodeError(zErr);
-    setAddressError(aErr);
-
-    if (!nErr && !zErr && !aErr) {
-      setIsFinishing(true);
-      const orderId = `TL-${Math.floor(100000 + Math.random() * 900000)}`;
-      const orderTotal = subtotal;
-      const itemsSummary = items.map(
-        (i) => `${i.quantity}x ${i.product.name} (${i.selectedSize} - ${i.selectedColor})`
-      );
-
-      setTimeout(async () => {
-        try {
-          await addOrder({
-            id: orderId,
-            date: new Date().toLocaleDateString('pt-BR'),
-            total: orderTotal,
-            paymentMethod: chosenPayment,
-            address: address.trim(),
-            zipCode: zipCode || '57051-190',
-            receiverName: receiverName.trim(),
-            itemsCount: totalItems,
-            itemsSummary,
-          });
-        } catch {
-          showToast('O servidor não confirmou o pedido. Verifique o histórico antes de tentar novamente.', 'error');
-          return;
-        } finally {
-          setIsFinishing(false);
-        }
-
-        setQuickModalVisible(false);
-        clearCart();
-        setCheckoutStep(1);
-        showToast(
-          `Compra confirmada via ${chosenPayment.toUpperCase()}! Pedido #${orderId}`,
-          'success'
-        );
-
-        navigation.navigate('OrderSuccess', {
-          orderId,
-          total: orderTotal,
-        });
-      }, 600);
-    } else {
-      showToast('Preencha nome e endereço válidos para concluir.', 'error');
+    submittingOrder.current = true;
+    setIsFinishing(true);
+    const orderId = `TL-${Math.floor(100000 + Math.random() * 900000)}`;
+    const total = subtotal;
+    try {
+      await addOrder({
+        id: orderId,
+        date: new Date().toLocaleDateString('pt-BR'),
+        total,
+        paymentMethod: chosenPayment,
+        address: address.trim(),
+        zipCode,
+        receiverName: receiverName.trim(),
+        itemsCount: totalItems,
+        itemsSummary: items.map(item => `${item.quantity}x ${item.product.name} (${item.selectedSize} - ${item.selectedColor})`),
+      });
+      setQuickModalVisible(false);
+      clearCart();
+      setCheckoutStep(1);
+      setFormSubmitted(false);
+      navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('OrderSuccess', { orderId, total });
+    } catch {
+      setOrderError('O servidor não confirmou o pedido. Verifique o histórico antes de tentar novamente.');
+    } finally {
+      submittingOrder.current = false;
+      setIsFinishing(false);
     }
   };
+
+  const orderNotice = orderError && (
+    <AccessibleText size="sm" color={palette.danger} accessibilityLiveRegion="assertive" accessibilityRole="alert">
+      {orderError}
+    </AccessibleText>
+  );
 
   const handleFinishOrder = () => {
     completeOrderWithMethod(paymentMethod);
   };
 
   const handleCancelQuickModal = () => {
+    if (submittingOrder.current) return;
     if (Platform.OS === 'web') {
       const confirmed =
         typeof window !== 'undefined'
-          ? window.confirm('Deseja realmente fechar o modal de compra rápida?')
+          ? window.confirm('Deseja realmente fechar a compra rápida?')
           : true;
       if (confirmed) setQuickModalVisible(false);
       return;
@@ -305,32 +266,17 @@ export const CartScreen: React.FC = () => {
           keyboardShouldPersistTaps="handled"
         >
           <View>
-              {/* Botão de Voltar quando aberto via Comprar Agora / Stack */}
-              {navigation.canGoBack() && (
-                <TouchableOpacity
-                  style={styles.topBackButton}
-                  onPress={() => navigation.goBack()}
-                  accessibilityRole="button"
-                  accessibilityLabel="Voltar para a tela anterior"
-                >
-                  <ArrowLeft size={20} color={palette.iconPrimary} />
-                  <AccessibleText size="sm" weight="bold" color={Colors.deepSpaceNavy}>
-                    Voltar
-                  </AccessibleText>
-                </TouchableOpacity>
-              )}
-
               {/* Cabeçalho */}
               <View style={styles.header}>
                 <AccessibleText size="xs" weight="bold" color={Colors.electricIris} style={styles.badge}>
-                  CHECKOUT ACESSÍVEL EM 2 ETAPAS + GPS
+                  Etapa {checkoutStep} de 2
                 </AccessibleText>
                 <AccessibleText size="2xl" weight="bold" color={Colors.deepSpaceNavy}>
                   {checkoutStep === 1 ? 'Minha Sacola' : 'Dados de Entrega & Pagamento'}
                 </AccessibleText>
                 <AccessibleText size="sm" color={Colors.charcoalSlate}>
                   {checkoutStep === 1
-                    ? `${totalItems} ${totalItems === 1 ? 'item' : 'itens'} adicionados`
+                    ? (totalItems === 1 ? '1 item adicionado' : `${totalItems} itens adicionados`)
                     : 'Preencha ou use o GPS para localizar seu endereço automaticamente.'}
                 </AccessibleText>
               </View>
@@ -416,8 +362,8 @@ export const CartScreen: React.FC = () => {
                     </View>
                   ) : (
                     <View>
-                      {items.map((item, index) => {
-                        const itemKey = `${item.product.id}-${item.selectedSize}-${index}`;
+                      {items.map((item) => {
+                        const itemKey = JSON.stringify([item.product.id, item.selectedSize, item.selectedColor]);
                         const hasImageError = failedImages[itemKey];
                         return (
                           <View key={itemKey} style={[styles.cartCard, cardSurfaceStyle]}>
@@ -427,7 +373,8 @@ export const CartScreen: React.FC = () => {
                               </View>
                             ) : (
                               <Image
-                                source={{ uri: item.product.imageUrl }}
+                                source={getProductImage(item.product, item.selectedColor)}
+                                resizeMode="contain"
                                 style={styles.cartImage}
                                 onError={() =>
                                   setFailedImages((prev) => ({ ...prev, [itemKey]: true }))
@@ -502,9 +449,8 @@ export const CartScreen: React.FC = () => {
                                 >
                                   <TouchableOpacity
                                     style={styles.qtyButton}
-                                    onPress={() =>
-                                      updateQuantity(item.product.id, item.selectedSize, -1)
-                                    }
+                                    onPress={() => item.quantity === 1 ? handleConfirmRemove(item) : updateQuantity(item, -1)}
+                                    accessibilityRole="button"
                                     accessibilityLabel="Diminuir quantidade"
                                   >
                                     <Minus size={16} color={palette.iconPrimary} />
@@ -521,9 +467,8 @@ export const CartScreen: React.FC = () => {
 
                                   <TouchableOpacity
                                     style={styles.qtyButton}
-                                    onPress={() =>
-                                      updateQuantity(item.product.id, item.selectedSize, 1)
-                                    }
+                                    onPress={() => updateQuantity(item, 1)}
+                                    accessibilityRole="button"
                                     accessibilityLabel="Aumentar quantidade"
                                   >
                                     <Plus size={16} color={palette.iconPrimary} />
@@ -532,13 +477,8 @@ export const CartScreen: React.FC = () => {
 
                                 <TouchableOpacity
                                   style={styles.deleteButton}
-                                  onPress={() =>
-                                    handleConfirmRemove(
-                                      item.product.id,
-                                      item.selectedSize,
-                                      item.product.name
-                                    )
-                                  }
+                                  onPress={() => handleConfirmRemove(item)}
+                                  accessibilityRole="button"
                                   accessibilityLabel="Remover item da sacola"
                                 >
                                   <Trash2 size={18} color={palette.danger} />
@@ -576,11 +516,11 @@ export const CartScreen: React.FC = () => {
                           <View style={styles.shippingTag}>
                             <Truck size={16} color={palette.success} />
                             <AccessibleText size="xs" weight="bold" color={Colors.successEmerald}>
-                              Frete Acessível
+                              Entrega de demonstração
                             </AccessibleText>
                           </View>
                           <AccessibleText size="sm" weight="bold" color={Colors.successEmerald}>
-                            GRÁTIS
+                            Simulada
                           </AccessibleText>
                         </View>
 
@@ -611,9 +551,9 @@ export const CartScreen: React.FC = () => {
                         />
 
                         <CustomButton
-                          title="Comprar via Modal Rápido"
+                          title="Compra rápida"
                           onPress={() => {
-                            if (!zipCode) setZipCode('57051-190');
+                            setOrderError(null);
                             setQuickModalVisible(true);
                           }}
                           variant="secondary"
@@ -661,11 +601,11 @@ export const CartScreen: React.FC = () => {
                           : 'Usar Minha Localização Atual (GPS)'}
                       </AccessibleText>
                       <AccessibleText size="xs" color={Colors.charcoalSlate}>
-                        {gpsCoordinatesLabel ||
-                          'Preenche CEP e endereço sem precisar digitar'}
+                        Preenche CEP e endereço quando disponíveis.
                       </AccessibleText>
                     </View>
                   </TouchableOpacity>
+                  {gpsNotice}
 
                   <CustomInput
                     label="Nome do Destinatário"
@@ -694,7 +634,7 @@ export const CartScreen: React.FC = () => {
                     }}
                     errorMessage={zipCodeError}
                     isValid={Boolean(zipCode && !validateZipCode(zipCode))}
-                    helperText="Entrega gratuita com rastreamento por SMS e áudio."
+                    helperText="Digite os oito dígitos do CEP."
                   />
 
                   <CustomInput
@@ -717,10 +657,13 @@ export const CartScreen: React.FC = () => {
                       color={Colors.deepSpaceNavy}
                       style={styles.paymentLabel}
                     >
-                      Selecione o Método de Pagamento:
+                      Forma de pagamento simulada
                     </AccessibleText>
 
-                    <View style={styles.paymentOptions}>
+                    <AccessibleText size="xs" color={palette.textSecondary}>
+                      Nenhuma cobrança será feita neste pedido de demonstração.
+                    </AccessibleText>
+                    <View style={styles.paymentOptions} accessibilityRole="radiogroup" accessibilityLabel="Forma de pagamento simulada">
                       <TouchableOpacity
                         style={[
                           styles.paymentOptionCard,
@@ -735,7 +678,9 @@ export const CartScreen: React.FC = () => {
                           },
                         ]}
                         onPress={() => setPaymentMethod('pix')}
-                        accessibilityRole="button"
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: paymentMethod === 'pix' }}
+                        aria-checked={paymentMethod === 'pix'}
                       >
                         <QrCode
                           size={22}
@@ -750,7 +695,7 @@ export const CartScreen: React.FC = () => {
                             paymentMethod === 'pix' ? Colors.electricIris : Colors.highInkSlate
                           }
                         >
-                          Pix (Aprovação Instantânea)
+                          Pix
                         </AccessibleText>
                       </TouchableOpacity>
 
@@ -768,7 +713,9 @@ export const CartScreen: React.FC = () => {
                           },
                         ]}
                         onPress={() => setPaymentMethod('card')}
-                        accessibilityRole="button"
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: paymentMethod === 'card' }}
+                        aria-checked={paymentMethod === 'card'}
                       >
                         <CreditCard
                           size={22}
@@ -783,7 +730,7 @@ export const CartScreen: React.FC = () => {
                             paymentMethod === 'card' ? Colors.electricIris : Colors.highInkSlate
                           }
                         >
-                          Cartão de Crédito
+                          Cartão de crédito
                         </AccessibleText>
                       </TouchableOpacity>
 
@@ -801,7 +748,9 @@ export const CartScreen: React.FC = () => {
                           },
                         ]}
                         onPress={() => setPaymentMethod('boleto')}
-                        accessibilityRole="button"
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: paymentMethod === 'boleto' }}
+                        aria-checked={paymentMethod === 'boleto'}
                       >
                         <FileText
                           size={22}
@@ -841,9 +790,10 @@ export const CartScreen: React.FC = () => {
                     </AccessibleText>
                   </View>
 
+                  {orderNotice}
                   <View style={styles.checkoutActions}>
                     <CustomButton
-                      title={isFinishing ? 'Processando Pedido...' : 'Finalizar Compra Segura'}
+                      title={isFinishing ? 'Processando Pedido...' : 'Registrar pedido de teste'}
                       onPress={handleFinishOrder}
                       loading={isFinishing}
                       variant="success"
@@ -872,7 +822,9 @@ export const CartScreen: React.FC = () => {
         onRequestClose={handleCancelQuickModal}
       >
         <View style={styles.modalOverlay}>
-          <View
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            accessibilityViewIsModal
             style={[
               styles.modalSheet,
               {
@@ -884,13 +836,13 @@ export const CartScreen: React.FC = () => {
           >
             <View style={styles.modalHeader}>
               <AccessibleText size="lg" weight="bold" color={Colors.deepSpaceNavy}>
-                Compra Expressa (1-Clique)
+                Compra rápida
               </AccessibleText>
               <TouchableOpacity
                 onPress={handleCancelQuickModal}
                 style={styles.closeModalBtn}
                 accessibilityRole="button"
-                accessibilityLabel="Cancelar e fechar modal"
+                accessibilityLabel="Fechar compra rápida"
               >
                 <X size={22} color={palette.iconPrimary} />
               </TouchableOpacity>
@@ -905,13 +857,15 @@ export const CartScreen: React.FC = () => {
                 },
               ]}
               onPress={handleFetchGpsLocation}
+              disabled={isLocatingGps}
               accessibilityRole="button"
             >
               <MapPin size={16} color={palette.iconAccent} />
               <AccessibleText size="xs" weight="bold" color={Colors.electricIris}>
-                📍 Preencher Endereço via GPS
+                {isLocatingGps ? 'Obtendo localização…' : 'Preencher endereço via GPS'}
               </AccessibleText>
             </TouchableOpacity>
+            {gpsNotice}
 
             <CustomInput
               label="Nome Completo"
@@ -920,6 +874,17 @@ export const CartScreen: React.FC = () => {
               value={receiverName}
               onChangeText={setReceiverName}
               errorMessage={receiverNameError}
+            />
+
+            <CustomInput
+              label="CEP de entrega"
+              required
+              placeholder="00000-000"
+              keyboardType="numeric"
+              maxLength={9}
+              value={zipCode}
+              onChangeText={value => setZipCode(formatZipCode(value))}
+              errorMessage={zipCodeError}
             />
 
             <CustomInput
@@ -937,13 +902,15 @@ export const CartScreen: React.FC = () => {
               color={Colors.deepSpaceNavy}
               style={styles.modalPayLabel}
             >
-              Toque na forma de pagamento para concluir imediatamente:
+              Escolha uma forma de pagamento simulada. Nenhuma cobrança será feita.
             </AccessibleText>
 
+            {orderNotice}
             <View style={styles.modalPayRow}>
               <TouchableOpacity
                 style={[styles.modalPayBtn, { backgroundColor: palette.success }]}
                 onPress={() => completeOrderWithMethod('pix')}
+                disabled={isFinishing}
               >
                 <QrCode size={18} color={highContrast ? '#000000' : Colors.white} />
                 <AccessibleText
@@ -958,6 +925,7 @@ export const CartScreen: React.FC = () => {
               <TouchableOpacity
                 style={[styles.modalPayBtn, { backgroundColor: palette.primary }]}
                 onPress={() => completeOrderWithMethod('card')}
+                disabled={isFinishing}
               >
                 <CreditCard size={18} color={palette.primaryContent} />
                 <AccessibleText size="sm" weight="bold" color={palette.primaryContent}>
@@ -968,6 +936,7 @@ export const CartScreen: React.FC = () => {
               <TouchableOpacity
                 style={[styles.modalPayBtn, { backgroundColor: Colors.deepSpaceNavy }]}
                 onPress={() => completeOrderWithMethod('boleto')}
+                disabled={isFinishing}
               >
                 <FileText size={18} color={Colors.white} />
                 <AccessibleText size="sm" weight="bold" color={Colors.white}>
@@ -982,7 +951,7 @@ export const CartScreen: React.FC = () => {
               variant="outline"
               style={styles.cancelModalBtn}
             />
-          </View>
+          </ScrollView>
         </View>
       </Modal>
     </SafeAreaView>
@@ -1085,17 +1054,6 @@ const styles = StyleSheet.create({
   },
   itemPrice: {
     marginVertical: 4,
-  },
-  topBackButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    minHeight: 44,
-    minWidth: 44,
-    alignSelf: 'flex-start',
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-    marginBottom: 8,
   },
   qtyRow: {
     flexDirection: 'row',
@@ -1245,6 +1203,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalSheet: {
+    maxHeight: '92%',
     backgroundColor: Colors.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
