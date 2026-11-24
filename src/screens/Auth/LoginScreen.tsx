@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, TouchableWithoutFeedback, Keyboard, } from 'react-native';
+import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, TouchableWithoutFeedback, Keyboard, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Formik } from 'formik';
@@ -22,6 +22,7 @@ interface LoginFormValues {
   senha: string;
 }
 
+// Validação do formulário com Yup (roda no app antes de enviar ao servidor).
 const loginValidationSchema = Yup.object().shape({
   email: Yup.string()
     .email('Digite um e-mail válido (exemplo: usuario@email.com)')
@@ -37,6 +38,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const { showToast } = useToastStore();
   const [loginError, setLoginError] = useState<string | null>(null);
 
+  // Envia o login ao back-end via AuthContext -> api.login (POST /auth/local).
   const handleLoginSubmit = async (values: LoginFormValues) => {
     setLoginError(null);
     try {
@@ -68,22 +70,15 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
         >
           <View>
           <View style={styles.brandSection}>
-            <View
-              style={[
-                styles.logoBadge,
-                {
-                  backgroundColor: highContrast ? palette.primary : Colors.deepSpaceNavy,
-                  borderColor: palette.primary,
-                },
-              ]}
-            >
-              <AccessibleText
-                size="xl"
-                weight="bold"
-                color={highContrast ? palette.primaryContent : Colors.white}
-              >
-                TL
-              </AccessibleText>
+            {/* Logo do TrendLab: é a mesma imagem do ícone do aplicativo (assets/branding/icon.png) */}
+            <View style={[styles.logoBadge, { borderColor: highContrast ? palette.primary : Colors.electricIris }]}>
+              <Image
+                source={require('../../../assets/branding/icon.png')}
+                style={styles.logoImage}
+                resizeMode="cover"
+                accessibilityRole="image"
+                accessibilityLabel="Logo do TrendLab: sacola de compras com gráfico em alta"
+              />
             </View>
             <AccessibleText size="3xl" weight="bold" color={Colors.highInkSlate}>
               TrendLab
@@ -246,15 +241,17 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   logoBadge: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: Colors.deepSpaceNavy,
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 88,
+    height: 88,
+    borderRadius: 22,
+    overflow: 'hidden',
     marginBottom: 12,
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: Colors.electricIris,
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
   brandSubtitle: {
     marginTop: 4,

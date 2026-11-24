@@ -175,6 +175,7 @@ export const CartScreen: React.FC = () => {
     return '';
   };
 
+  // Finaliza a compra: valida o formulário e chama addOrder -> POST /api/pedidos (CRUD - Create).
   const completeOrderWithMethod = async (chosenPayment: OrderRecord['paymentMethod']) => {
     if (submittingOrder.current || !items.length) return;
     setOrderError(null);

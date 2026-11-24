@@ -18,13 +18,15 @@ import { AccessibleText } from '../../components/AccessibleText';
 import { AccessibilityBar } from '../../components/AccessibilityBar';
 import { CustomInput } from '../../components/CustomInput';
 import { CustomButton } from '../../components/CustomButton';
+import { TermsModal } from '../../components/TermsModal';
 import { useAuth } from '../../context/AuthContext';
 import { useAccessibility } from '../../context/AccessibilityContext';
 import Colors from '../../theme/colors';
-import { ArrowLeft, UserPlus } from 'lucide-react-native';
+import { ArrowLeft, UserPlus, Check } from 'lucide-react-native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Register'>;
 
+// Validação do formulário com Yup (nome, e-mail, senha e confirmação).
 const registerValidationSchema = Yup.object().shape({
   nome: Yup.string()
     .trim()
@@ -41,21 +43,26 @@ const registerValidationSchema = Yup.object().shape({
   confirmarSenha: Yup.string()
     .oneOf([Yup.ref('senha')], 'As senhas digitadas não coincidem.')
     .required('Confirme sua senha.'),
+  // LGPD: sem marcar o aceite do termo, o cadastro não é enviado
+  aceite: Yup.boolean().oneOf([true], 'É necessário aceitar os termos para criar a conta.'),
 });
 
 export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const { registerUser } = useAuth();
   const [registerError, setRegisterError] = useState<string | null>(null);
+  const [termsVisible, setTermsVisible] = useState(false);
   const { palette, highContrast } = useAccessibility();
 
+  // Envia o cadastro ao back-end via AuthContext -> api.register (POST /auth/local/register).
   const handleRegisterSubmit = async (values: {
     nome: string;
     email: string;
     senha: string;
+    aceite: boolean;
   }) => {
     setRegisterError(null);
     try {
-      await registerUser(values.nome.trim(), values.email.trim(), values.senha);
+      await registerUser(values.nome.trim(), values.email.trim(), values.senha, values.aceite);
     } catch (error) {
       setRegisterError(error instanceof Error ? error.message : 'Não foi possível salvar o cadastro. Tente novamente.');
     }
@@ -103,7 +110,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             </AccessibleText>
 
             <Formik
-              initialValues={{ nome: '', email: '', senha: '', confirmarSenha: '' }}
+              initialValues={{ nome: '', email: '', senha: '', confirmarSenha: '', aceite: false }}
               validationSchema={registerValidationSchema}
               onSubmit={handleRegisterSubmit}
             >
@@ -115,6 +122,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                 errors,
                 touched,
                 isSubmitting,
+                setFieldValue,
               }) => (
                 <View>
                   <CustomInput
@@ -171,6 +179,47 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                     )}
                   />
 
+                  {/* LGPD: aceite obrigatório do termo; o valor segue ao servidor, que grava a data do aceite */}
+                  <View style={styles.termsRow}>
+                    <TouchableOpacity
+                      onPress={() => setFieldValue('aceite', !values.aceite)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      style={[
+                        styles.checkbox,
+                        {
+                          borderColor: touched.aceite && errors.aceite ? palette.danger : palette.borderStrong,
+                          backgroundColor: values.aceite ? palette.primary : 'transparent',
+                        },
+                      ]}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: values.aceite }}
+                      accessibilityLabel="Li e aceito os Termos de Uso e a Política de Privacidade"
+                    >
+                      {values.aceite && <Check size={16} color={palette.primaryContent} />}
+                    </TouchableOpacity>
+                    <View style={styles.termsText}>
+                      <AccessibleText size="sm" color={palette.textPrimary}>
+                        Li e aceito os Termos de Uso e a Política de Privacidade (LGPD).
+                      </AccessibleText>
+                      <TouchableOpacity
+                        onPress={() => setTermsVisible(true)}
+                        accessibilityRole="link"
+                        accessibilityLabel="Ler os termos de uso e a política de privacidade"
+                      >
+                        <AccessibleText size="sm" weight="bold" color={Colors.electricIris}>
+                          Ler os termos
+                        </AccessibleText>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  {touched.aceite && errors.aceite && (
+                    <View style={{ marginBottom: 12 }} accessibilityLiveRegion="assertive" accessibilityRole="alert">
+                      <AccessibleText size="xs" weight="bold" color={palette.danger}>
+                        {errors.aceite}
+                      </AccessibleText>
+                    </View>
+                  )}
+
                   {registerError && (
                     <View style={{ marginBottom: 12 }} accessibilityLiveRegion="assertive" accessibilityRole="alert">
                       <AccessibleText size="sm" weight="bold" color={palette.danger}>
@@ -194,6 +243,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                 </View>
               )}
             </Formik>
+            <TermsModal visible={termsVisible} onClose={() => setTermsVisible(false)} />
           </View>
           </View>
         </ScrollView>
@@ -203,6 +253,25 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  termsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 12,
+  },
+  checkbox: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  termsText: {
+    flex: 1,
+    gap: 4,
+  },
   safeArea: {
     flex: 1,
     backgroundColor: Colors.cleanCanvas,

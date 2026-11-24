@@ -16,6 +16,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AccessibleText } from '../../components/AccessibleText';
 import { AccessibilityBar } from '../../components/AccessibilityBar';
 import { CustomButton } from '../../components/CustomButton';
+import { EditOrderModal } from '../../components/EditOrderModal';
+import { TermsModal } from '../../components/TermsModal';
+import { DeleteAccountModal } from '../../components/DeleteAccountModal';
 import { useAccessibility } from '../../context/AccessibilityContext';
 import { useAuth } from '../../context/AuthContext';
 import { useUsuarioStore } from '../../store/usuario-store';
@@ -37,6 +40,8 @@ import {
   Moon,
   Sun,
   Trash2,
+  Pencil,
+  ShieldCheck,
 } from 'lucide-react-native';
 
 const paymentLabels: Record<OrderRecord['paymentMethod'], string> = {
@@ -46,7 +51,7 @@ const paymentLabels: Record<OrderRecord['paymentMethod'], string> = {
 };
 
 export const ProfileScreen: React.FC = () => {
-  const { user, logoutUser } = useAuth();
+  const { user, logoutUser, deleteAccount } = useAuth();
   const {
     usuario,
     jwtToken,
@@ -55,6 +60,7 @@ export const ProfileScreen: React.FC = () => {
     setAvatarUri,
     orders,
     removeOrder,
+    updateOrder,
   } = useUsuarioStore();
   const { showToast } = useToastStore();
 
@@ -74,6 +80,9 @@ export const ProfileScreen: React.FC = () => {
 
   const [status, requestPermission] = ImagePicker.useCameraPermissions();
   const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(null);
+  const [editingOrder, setEditingOrder] = useState<OrderRecord | null>(null);
+  const [termsVisible, setTermsVisible] = useState(false);
+  const [deleteVisible, setDeleteVisible] = useState(false);
 
   const activeEmail = (usuario || user?.email || '').trim().toLowerCase();
   const userOrders = orders.filter(
@@ -444,6 +453,38 @@ export const ProfileScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
+        {/* LGPD: consulta dos termos e direito à exclusão da conta */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <ShieldCheck size={20} color={palette.iconAccent} />
+            <AccessibleText size="base" weight="bold" color={Colors.deepSpaceNavy}>
+              Privacidade e Dados (LGPD)
+            </AccessibleText>
+          </View>
+          <View style={[styles.preferenceCard, cardSurfaceStyle, { gap: 10 }]}>
+            <AccessibleText size="xs" color={Colors.charcoalSlate}>
+              Seus dados ficam no servidor do TrendLab (conta e pedidos) e neste aparelho (sessão, foto e medidas).
+            </AccessibleText>
+            <CustomButton
+              title="Ler Termos e Política de Privacidade"
+              onPress={() => setTermsVisible(true)}
+              variant="outline"
+              icon={<ShieldCheck size={18} color={palette.iconAccent} />}
+            />
+            <TouchableOpacity
+              style={[styles.photoActionBtn, { backgroundColor: palette.danger }]}
+              onPress={() => setDeleteVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Excluir minha conta e todos os meus dados"
+            >
+              <Trash2 size={16} color={Colors.white} />
+              <AccessibleText size="xs" weight="bold" color={Colors.white}>
+                Excluir minha conta
+              </AccessibleText>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <View style={styles.logoutSection}>
           <CustomButton
             title="Encerrar Sessão (Logout)"
@@ -522,6 +563,22 @@ export const ProfileScreen: React.FC = () => {
                   })}
                 </AccessibleText>
 
+                {/* CRUD - UPDATE: abre a edição do pedido (PUT /api/pedidos/:id) */}
+                <TouchableOpacity
+                  style={[styles.photoActionBtn, { marginTop: 8 }]}
+                  onPress={() => {
+                    setEditingOrder(selectedOrder);
+                    setSelectedOrder(null);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Editar este pedido"
+                >
+                  <Pencil size={16} color={Colors.white} />
+                  <AccessibleText size="xs" weight="bold" color={Colors.white}>
+                    Editar Pedido
+                  </AccessibleText>
+                </TouchableOpacity>
+
                 <TouchableOpacity
                   style={[
                     styles.photoActionBtn,
@@ -531,6 +588,7 @@ export const ProfileScreen: React.FC = () => {
                     },
                   ]}
                   onPress={async () => {
+                    // CRUD - DELETE: cancela o pedido no servidor (DELETE /api/pedidos/:id) e atualiza o histórico.
                     const orderIdToRemove = selectedOrder.id;
                     try {
                       await removeOrder(orderIdToRemove);
@@ -553,6 +611,34 @@ export const ProfileScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Edição do pedido: ao salvar, volta aos detalhes já com os dados atualizados pelo servidor */}
+      <EditOrderModal
+        order={editingOrder}
+        onClose={() => {
+          setSelectedOrder(editingOrder);
+          setEditingOrder(null);
+        }}
+        onSave={async (changes) => {
+          if (!editingOrder) return;
+          const updated = await updateOrder(editingOrder.id, changes);
+          showToast(`Pedido #${editingOrder.id} atualizado com sucesso.`, 'success');
+          setSelectedOrder({ ...editingOrder, ...updated });
+          setEditingOrder(null);
+        }}
+      />
+
+      <TermsModal visible={termsVisible} onClose={() => setTermsVisible(false)} />
+
+      {/* Exclusão da conta: após o servidor confirmar, a sessão é encerrada e o app volta ao Login */}
+      <DeleteAccountModal
+        visible={deleteVisible}
+        onClose={() => setDeleteVisible(false)}
+        onConfirm={async (password) => {
+          await deleteAccount(password);
+          showToast('Conta excluída. Seus dados foram removidos.', 'info');
+        }}
+      />
     </SafeAreaView>
   );
 };

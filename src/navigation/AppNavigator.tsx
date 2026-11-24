@@ -32,6 +32,7 @@ export const AppNavigator: React.FC = () => {
         contentStyle: { backgroundColor: Colors.cleanCanvas },
       }}
     >
+      {/* ROTAS PROTEGIDAS: com usuário autenticado mostra o app; sem usuário, só Login e Cadastro. */}
       {user ? (
         <>
           <Stack.Screen name="MainTabs" component={TabNavigator} />

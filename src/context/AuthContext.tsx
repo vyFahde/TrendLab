@@ -11,12 +11,14 @@ export interface User {
 
 interface AuthContextData {
   user: User | null;
-  registerUser: (name: string, email: string, password: string) => Promise<void>;
+  registerUser: (name: string, email: string, password: string, acceptedTerms: boolean) => Promise<void>;
   loginUser: (email: string, password: string) => Promise<boolean>;
   logoutUser: () => Promise<void>;
+  deleteAccount: (password: string) => Promise<void>;
   loading: boolean;
 }
 
+// O JWT é guardado no SecureStore (Keychain/Keystore), armazenamento criptografado do aparelho, e não no AsyncStorage comum.
 const sessionKey = 'trendlab.session';
 const secureOptions = { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY };
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
@@ -29,6 +31,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     let cancelled = false;
+    // Ao abrir o app: restaura a sessão salva e valida o token no servidor; se expirou ou é inválido, volta para o login.
     const initialize = async () => {
       try {
         const keys = await AsyncStorage.getAllKeys();
@@ -82,6 +85,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearTimeout(timeout);
   }, [session, setUsuario]);
 
+  // Após login/cadastro: guarda o JWT e atualiza o estado global (Zustand) com o usuário logado.
   const openSession = async (auth: AuthSession) => {
     const baseUrl = api.getBaseUrl();
     try {
@@ -100,8 +104,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (useUsuarioStore.getState().jwtToken === auth.jwt) setSession(auth);
   };
 
-  const registerUser = async (name: string, email: string, password: string) => {
-    await openSession(await api.register(name, email, password));
+  const registerUser = async (name: string, email: string, password: string, acceptedTerms: boolean) => {
+    await openSession(await api.register(name, email, password, acceptedTerms));
   };
 
   const loginUser = async (email: string, password: string) => {
@@ -111,6 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   };
 
+  // Logout: apaga o token do SecureStore e limpa o estado do usuário.
   const logoutUser = async () => {
     if (await SecureStore.isAvailableAsync()) {
       await SecureStore.deleteItemAsync(sessionKey, secureOptions);
@@ -119,9 +124,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await setUsuario(null);
   };
 
+  // LGPD - excluir conta: apaga no servidor (conta + pedidos), limpa os dados do aparelho e encerra a sessão.
+  const deleteAccount = async (password: string) => {
+    await useUsuarioStore.getState().deleteAccount(password);
+    await logoutUser();
+  };
+
   const user = session ? { name: session.user.username, email: session.user.email } : null;
   return (
-    <AuthContext.Provider value={{ user, registerUser, loginUser, logoutUser, loading }}>
+    <AuthContext.Provider value={{ user, registerUser, loginUser, logoutUser, deleteAccount, loading }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,6 +1,4 @@
--- ============================================================================
--- TrendLab E-Commerce Acessível — Esquema Relacional SQL (SQLite)
--- ============================================================================
+
 
 PRAGMA foreign_keys = ON;
 
@@ -9,9 +7,11 @@ CREATE TABLE IF NOT EXISTS users (
   username TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
+  terms_accepted_at DATETIME, -- LGPD: data e hora em que o usuário aceitou o termo de uso e privacidade
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Catálogo de produtos exibido na Home (leitura).
 CREATE TABLE IF NOT EXISTS produtos (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS produtos (
   in_stock INTEGER DEFAULT 1
 );
 
+-- Pedidos: tabela do CRUD. user_email liga cada pedido ao dono (isolamento por usuário).
 CREATE TABLE IF NOT EXISTS pedidos (
   id TEXT PRIMARY KEY,
   date TEXT NOT NULL,

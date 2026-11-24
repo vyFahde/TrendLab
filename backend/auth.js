@@ -13,12 +13,14 @@ const legacyDemoAccounts = new Set([
   'testando@email.com',
 ]);
 
+// SENHA: nunca é salva em texto puro. Gera um salt aleatório e aplica scrypt (hash lento, resistente a força bruta).
 async function hashPassword(password) {
   const salt = crypto.randomBytes(16);
   const hash = await scrypt(password, salt, 32, scryptOptions);
   return `scrypt$${salt.toString('hex')}$${hash.toString('hex')}`;
 }
 
+// Recalcula o hash com o salt salvo e compara em tempo constante (evita ataque de temporização).
 async function verifyPassword(password, storedHash) {
   const match = hashPattern.exec(storedHash);
   const salt = match ? Buffer.from(match[1], 'hex') : Buffer.alloc(16);
@@ -55,6 +57,7 @@ function signJwt(header, payload, secret) {
   return crypto.createHmac('sha256', secret).update(`${header}.${payload}`).digest('base64url');
 }
 
+// JWT: token assinado (HS256) com o id do usuário e validade de 1 hora. O app envia em "Authorization: Bearer <token>".
 function issueSession(user, secret) {
   const issuedAt = Math.floor(Date.now() / 1000);
   const expires = issuedAt + 3600;
@@ -71,6 +74,7 @@ function issueSession(user, secret) {
   };
 }
 
+// Valida formato, assinatura e expiração do token. Retorna o id do usuário ou null se for inválido.
 function verifyJwt(authorization, secret) {
   const match = /^Bearer ([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]{43})$/i.exec(authorization || '');
   if (!match || match[1] !== jwtHeader) return null;

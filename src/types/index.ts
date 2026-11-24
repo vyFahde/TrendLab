@@ -46,6 +46,9 @@ export interface OrderRecord {
   userEmail?: string;
 }
 
+// Campos que o usuário pode editar em um pedido já realizado (PUT /api/pedidos/:id)
+export type OrderUpdate = Pick<OrderRecord, 'receiverName' | 'zipCode' | 'address' | 'paymentMethod'>;
+
 // Stack interno da aba Início (mantém a Bottom Tab visível ao abrir os Detalhes)
 export type HomeStackParamList = {
   HomeScreen: undefined;

@@ -69,7 +69,7 @@ Presente no topo das telas. O painel pode ser recolhido e mantém o indicador de
 ### Minha Conta e Gestão de Pedidos
 - **Minha Conta (`src/screens/Profile/ProfileScreen.tsx`):**
   - **Foto de Perfil com Câmera / Galeria (`expo-image-picker`):** Captura foto pela câmera nativa (`launchCameraAsync`) ou seleciona da galeria (`launchImageLibraryAsync`) com conversão Base64 e armazenamento local separado por conta.
-  - **Histórico e Cancelamento de Pedidos (`GET` e `DELETE /api/pedidos/:id`):** Consulta de pedidos realizados exclusivamente pelo usuário autenticado, com modal de detalhes e botão para cancelar/excluir o pedido diretamente no banco SQLite.
+  - **Histórico, Edição e Cancelamento de Pedidos (`GET`, `PUT` e `DELETE /api/pedidos/:id`):** Consulta de pedidos realizados exclusivamente pelo usuário autenticado, com modal de detalhes, botão **Editar Pedido** (nome do destinatário, CEP, endereço e forma de pagamento, com validação no app e no servidor) e botão para cancelar/excluir o pedido diretamente no banco SQLite.
 
 ---
 
@@ -81,19 +81,26 @@ O projeto inclui um servidor Node.js na porta `1337` (`backend/server.js`) conec
 | :--- | :--- | :--- | :--- |
 | `GET` | `/api/status` | `SELECT COUNT(*) FROM users, produtos, pedidos` | Verifica status do servidor e total de registros |
 | `POST` | `/api/auth/local` | `SELECT id, username, email, password_hash FROM users ...` | Autentica usuário e retorna `{ jwt, user }` |
-| `POST` | `/api/auth/local/register` | `INSERT INTO users (username, email, password_hash) VALUES (...)` | Cadastra novo usuário no banco SQL e retorna `{ jwt, user }` |
+| `POST` | `/api/auth/local/register` | `INSERT INTO users (username, email, password_hash, terms_accepted_at) VALUES (...)` | Cadastra novo usuário no banco SQL e retorna `{ jwt, user }`; exige `acceptedTerms: true` (LGPD) |
 | `GET` | `/api/produtos` | `SELECT * FROM produtos WHERE category = ? ORDER BY id ASC` | Lista catálogo completo ou filtrado por categoria |
 | `GET` | `/api/pedidos` | `SELECT * FROM pedidos WHERE user_email = ?` | Lista histórico de compras do usuário logado (`[JWT]`) |
 | `POST` | `/api/pedidos` | `INSERT INTO pedidos (...) VALUES (...)` | Grava novo pedido finalizado na Sacola (`[JWT]`) |
-| `PUT` | `/api/pedidos/:id` | `UPDATE pedidos SET address = ?, payment_method = ? WHERE id = ?` | Atualiza dados de um pedido existente (`[JWT]`) |
+| `PUT` | `/api/pedidos/:id` | `UPDATE pedidos SET receiver_name = ?, zip_code = ?, address = ?, payment_method = ? WHERE id = ?` | Atualiza destinatário, CEP, endereço e pagamento de um pedido do usuário logado (`[JWT]`) |
 | `DELETE` | `/api/pedidos/:id` | `DELETE FROM pedidos WHERE id = ?` | Cancela e remove um pedido do banco SQL (`[JWT]`) |
+| `DELETE` | `/api/users/me` | `DELETE FROM pedidos WHERE user_email = ?; DELETE FROM users WHERE id = ?` | LGPD: exclui a conta e todos os pedidos do usuário; exige a senha no corpo (`[JWT]`) |
 
 ### Integração e armazenamento de dados
 
-O app usa a API para cadastrar e autenticar contas, consultar o catálogo, criar pedidos, consultar o histórico e cancelar pedidos. A edição de endereço e método de pagamento de um pedido está disponível pela rota `PUT /api/pedidos/:id`. A interface oferece criação, consulta e cancelamento.
+O app usa a API para cadastrar e autenticar contas, consultar o catálogo, criar pedidos, consultar o histórico e cancelar pedidos. A edição de destinatário, CEP, endereço e método de pagamento de um pedido usa a rota `PUT /api/pedidos/:id`. A interface oferece criação, consulta, edição e cancelamento (CRUD completo de pedidos).
 
-- **No servidor.** O SQLite guarda o nome de usuário, o e-mail, o hash da senha, o catálogo e os pedidos com os dados de entrega.
+- **No servidor.** O SQLite guarda o nome de usuário, o e-mail, o hash da senha, a data do aceite dos termos, o catálogo e os pedidos com os dados de entrega.
 - **No dispositivo ou navegador.** A sacola fica em memória até o checkout. A foto de perfil, as medidas do provador e uma cópia do histórico de pedidos são armazenadas localmente por conta. As preferências de acessibilidade também ficam no armazenamento local.
+
+### LGPD: termo de aceite e exclusão de conta
+
+- **Termo de Uso e Política de Privacidade (`src/data/legalTerms.ts`, `src/components/TermsModal.tsx`):** descreve quais dados são coletados, onde ficam salvos (SQLite no servidor; SecureStore e AsyncStorage no aparelho), para que são usados e quais são os direitos do usuário.
+- **Aceite obrigatório no cadastro (`RegisterScreen.tsx`):** a caixa "Li e aceito os Termos" precisa estar marcada (validação com Yup). O app envia `acceptedTerms: true` e o servidor recusa o cadastro sem ele, gravando a data e a hora do aceite em `users.terms_accepted_at`.
+- **Excluir conta (`ProfileScreen.tsx`, `DeleteAccountModal.tsx`):** o usuário confirma com a senha, e `DELETE /api/users/me` apaga a conta e todos os pedidos em uma transação. Depois o app remove os dados locais (pedidos em cache, foto e medidas) e encerra a sessão.
 
 ---
 

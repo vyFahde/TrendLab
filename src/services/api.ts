@@ -1,6 +1,6 @@
 import { Platform, NativeModules } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Product, OrderRecord } from '../types';
+import { Product, OrderRecord, OrderUpdate } from '../types';
 import { mockProducts } from '../data/mockProducts';
 
 // Detecta automaticamente o IP da máquina na rede local quando executado no dispositivo móvel via Expo Go
@@ -68,7 +68,8 @@ export interface AuthSession {
   user: { username: string; email: string };
 }
 
-async function authenticate(route: string, credentials: Record<string, string>): Promise<Response> {
+// Envia credenciais ao back-end (login ou cadastro). Fora do modo dev, exige HTTPS.
+async function authenticate(route: string, credentials: Record<string, string | boolean>): Promise<Response> {
   if (!__DEV__ && !currentBaseUrl.startsWith('https://')) {
     throw new Error('Configure uma API HTTPS para acessar o TrendLab.');
   }
@@ -104,6 +105,7 @@ export interface ApiStatusInfo {
   baseUrl: string;
 }
 
+// CAMADA DE SERVIÇO: única porta de comunicação do app com a API REST (as telas não chamam fetch diretamente).
 export const api = {
   getBaseUrl: () => currentBaseUrl,
 
@@ -158,6 +160,7 @@ export const api = {
     }
   },
 
+  // AUTENTICAÇÃO: POST /auth/local -> recebe o JWT. Retorna null se as credenciais estiverem erradas.
   login: async (identifier: string, password: string): Promise<AuthSession | null> => {
     const response = await authenticate('', { identifier: identifier.trim().toLowerCase(), password });
     if (response.status === 429) throw new Error('Muitas tentativas. Aguarde um minuto e tente novamente.');
@@ -166,11 +169,13 @@ export const api = {
     return readSession(response);
   },
 
-  register: async (username: string, email: string, password: string): Promise<AuthSession> => {
+  // CADASTRO: POST /auth/local/register -> cria a conta no banco e já devolve o JWT.
+  register: async (username: string, email: string, password: string, acceptedTerms: boolean): Promise<AuthSession> => {
     const response = await authenticate('/register', {
       username: username.trim(),
       email: email.trim().toLowerCase(),
       password,
+      acceptedTerms, // LGPD: o servidor recusa o cadastro sem o aceite do termo
     });
     if (response.status === 429) throw new Error('Muitas tentativas. Aguarde um minuto e tente novamente.');
     if (response.status === 409) throw new Error('Já existe uma conta com este e-mail. Volte à tela de login para entrar.');
@@ -183,6 +188,7 @@ export const api = {
     return readSession(response);
   },
 
+  // Confirma no servidor se o JWT salvo ainda é válido (usado ao reabrir o app).
   validateSession: async (jwt: string): Promise<boolean> => {
     const response = await fetchWithTimeout(`${currentBaseUrl}/pedidos`, {
       headers: { Authorization: `Bearer ${jwt}` },
@@ -194,6 +200,7 @@ export const api = {
     return true;
   },
 
+  // READ: busca o catálogo (GET /produtos). Se o servidor estiver fora do ar, usa os dados locais (mockProducts) como reserva.
   getProducts: async (
     category?: string
   ): Promise<{
@@ -245,6 +252,7 @@ export const api = {
     };
   },
 
+  // CRUD - READ: GET /pedidos enviando o JWT no cabeçalho Authorization.
   getOrders: async (jwt: string): Promise<{ orders: OrderRecord[] } | null> => {
     try {
       const res = await fetchWithTimeout(`${currentBaseUrl}/pedidos`, {
@@ -265,6 +273,7 @@ export const api = {
     return null;
   },
 
+  // CRUD - CREATE: POST /pedidos. Lança erro se o servidor não confirmar.
   createOrder: async (order: OrderRecord, jwt: string): Promise<void> => {
     const response = await fetchWithTimeout(`${currentBaseUrl}/pedidos`, {
       method: 'POST',
@@ -277,6 +286,27 @@ export const api = {
     }
   },
 
+  // CRUD - UPDATE: PUT /pedidos/:id com nome, CEP, endereço e pagamento. Retorna o pedido já atualizado pelo servidor.
+  updateOrder: async (orderId: string, changes: OrderUpdate, jwt: string): Promise<OrderRecord> => {
+    const response = await fetchWithTimeout(`${currentBaseUrl}/pedidos/${encodeURIComponent(orderId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` },
+      body: JSON.stringify({ data: changes }),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        response.status === 400
+          ? 'Confira os dados informados e tente novamente.'
+          : 'O servidor não confirmou a alteração do pedido.'
+      );
+    }
+    const json = await response.json();
+    if (!json?.data?.id) throw new Error('Resposta inválida ao atualizar o pedido.');
+    return json.data as OrderRecord;
+  },
+
+  // CRUD - DELETE: DELETE /pedidos/:id (cancelar pedido).
   deleteOrder: async (orderId: string, jwt: string): Promise<void> => {
     const response = await fetchWithTimeout(`${currentBaseUrl}/pedidos/${encodeURIComponent(orderId)}`, {
       method: 'DELETE',
@@ -286,5 +316,19 @@ export const api = {
     if (!response.ok) {
       throw new Error('O servidor não confirmou o cancelamento.');
     }
+  },
+
+  // LGPD - DELETE /users/me: exclui a conta e os pedidos. Exige o JWT e a senha atual como confirmação.
+  deleteAccount: async (password: string, jwt: string): Promise<void> => {
+    const response = await fetchWithTimeout(`${currentBaseUrl}/users/me`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` },
+      body: JSON.stringify({ password }),
+    }, 65_000);
+
+    if (response.status === 403) throw new Error('Senha incorreta.');
+    if (response.status === 429) throw new Error('Muitas tentativas. Aguarde um minuto e tente novamente.');
+    if (response.status === 401) throw new Error('Sua sessão expirou. Entre novamente para excluir a conta.');
+    if (!response.ok) throw new Error('Não foi possível excluir a conta. Tente novamente.');
   },
 };

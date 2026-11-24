@@ -12,6 +12,7 @@
  * - POST   /api/pedidos                 -> Registra novo pedido no banco SQL
  * - PUT    /api/pedidos/:id             -> Atualiza pedido existente
  * - DELETE /api/pedidos/:id             -> Cancela e remove um pedido
+ * - DELETE /api/users/me                -> LGPD: exclui a conta e todos os pedidos do usuário (exige senha)
  */
 
 const http = require('http');
@@ -33,12 +34,19 @@ if (!isHexSecret && !isBase64Secret) {
   throw new Error('Defina JWT_SECRET com 32 bytes aleatórios em hexadecimal ou Base64.');
 }
 
+// Banco relacional SQLite embutido no Node (sem servidor externo). As tabelas ficam definidas em schema.sql.
 const sqliteDb = new DatabaseSync(SQLITE_PATH, { timeout: 5000 });
 
 async function initSqlDatabase() {
   const schemaSql = fs.readFileSync(SCHEMA_PATH, 'utf-8');
   sqliteDb.exec(schemaSql);
   await migratePasswords(sqliteDb);
+
+  // Migração LGPD: bancos criados antes do termo de aceite ganham a coluna terms_accepted_at
+  const userColumns = sqliteDb.prepare('PRAGMA table_info(users)').all();
+  if (!userColumns.some((column) => column.name === 'terms_accepted_at')) {
+    sqliteDb.exec('ALTER TABLE users ADD COLUMN terms_accepted_at DATETIME');
+  }
 
   const prodCountRow = sqliteDb.prepare('SELECT COUNT(*) AS total FROM produtos').get();
 
@@ -146,6 +154,7 @@ const authAttempts = new Map();
 let authWindowEndsAt = 0;
 let activeAuthRequests = 0;
 
+// SEGURANÇA: limita tentativas de login/cadastro por IP (rate limit) contra ataques de força bruta.
 function reserveAuthAttempt(req, registration) {
   const now = Date.now();
   if (now >= authWindowEndsAt) {
@@ -283,6 +292,7 @@ async function handleRequest(req, res) {
     }
   }
 
+  // INTEGRAÇÃO: o catálogo da Home vem do banco SQL por esta rota (somente leitura).
   // 4. GET /api/produtos (SELECT * FROM produtos)
   if (req.method === 'GET' && pathname === '/api/produtos') {
     const categoryFilter = parsedUrl.searchParams.get('filters[category]');
@@ -336,6 +346,51 @@ async function handleRequest(req, res) {
     return sendJson(res, 405, { error: { message: 'O catálogo é somente leitura.' } });
   }
 
+  // LGPD - DIREITO À EXCLUSÃO: DELETE /api/users/me apaga a conta e todos os pedidos do usuário autenticado.
+  // Exige o JWT e a senha atual: assim, um token roubado não consegue apagar a conta.
+  if (req.method === 'DELETE' && pathname === '/api/users/me') {
+    if (!reserveAuthAttempt(req, false)) {
+      req.resume();
+      res.setHeader('Retry-After', '60');
+      return sendJson(res, 429, { error: { message: 'Muitas tentativas. Aguarde um minuto e tente novamente.' } });
+    }
+
+    const userId = verifyJwt(req.headers.authorization, JWT_SECRET);
+    const account = userId === null ? undefined : sqliteDb
+      .prepare('SELECT id, email, password_hash FROM users WHERE id = ?')
+      .get(userId);
+    if (!account) {
+      req.resume();
+      return sendJson(res, 401, { error: { message: 'Entre novamente para excluir sua conta.' } });
+    }
+
+    const { password } = await parseBody(req);
+    if (typeof password !== 'string' || !password || password.length > 256 ||
+        !(await verifyPassword(password, account.password_hash))) {
+      return sendJson(res, 403, { error: { message: 'Senha incorreta.' } });
+    }
+
+    // Pedidos e usuário saem juntos, em transação: ou apaga tudo, ou não apaga nada
+    sqliteDb.exec('BEGIN IMMEDIATE');
+    try {
+      const removedOrders = sqliteDb
+        .prepare('DELETE FROM pedidos WHERE LOWER(user_email) = ?')
+        .run(account.email.toLowerCase());
+      sqliteDb.prepare('DELETE FROM users WHERE id = ?').run(account.id);
+      sqliteDb.exec('COMMIT');
+      return sendJson(
+        res,
+        200,
+        { data: { deleted: true } },
+        `DELETE FROM pedidos WHERE user_email = ?; (${removedOrders.changes} rows) DELETE FROM users WHERE id = ?;`
+      );
+    } catch (error) {
+      sqliteDb.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  // PROTEÇÃO DAS ROTAS DE PEDIDOS: exige JWT válido. Todo acesso abaixo é filtrado pelo e-mail dono do token (um usuário nunca vê pedido de outro).
   let orderUserEmail;
   if (pathname === '/api/pedidos' || pathname.startsWith('/api/pedidos/')) {
     const userId = verifyJwt(req.headers.authorization, JWT_SECRET);
@@ -349,6 +404,7 @@ async function handleRequest(req, res) {
     orderUserEmail = user.email.toLowerCase();
   }
 
+  // CRUD - READ: lista somente os pedidos do usuário autenticado.
   // 7. GET /api/pedidos
   if (req.method === 'GET' && pathname === '/api/pedidos') {
     const rows = sqliteDb
@@ -367,6 +423,7 @@ async function handleRequest(req, res) {
     );
   }
 
+  // CRUD - CREATE: grava o pedido no banco, vinculado ao usuário do token. Chamado pelo checkout do app.
   // 8. POST /api/pedidos (INSERT INTO pedidos ...)
   if (req.method === 'POST' && pathname === '/api/pedidos') {
     const body = await parseBody(req);
@@ -415,6 +472,7 @@ async function handleRequest(req, res) {
     );
   }
 
+  // CRUD - UPDATE: altera nome do destinatário, CEP, endereço e forma de pagamento de um pedido do próprio usuário (usada pela tela Editar Pedido).
   // 9. PUT /api/pedidos/:id (UPDATE pedidos SET ... WHERE id = ?)
   if (req.method === 'PUT' && pathname.startsWith('/api/pedidos/')) {
     const id = pathname.split('/').pop();
@@ -432,22 +490,42 @@ async function handleRequest(req, res) {
       );
     }
 
-    const nextAddress = payload.address ?? existing.address;
+    // Cada campo é opcional: o que não vier no corpo mantém o valor atual
+    const nextReceiver = typeof payload.receiverName === 'string' ? payload.receiverName.trim() : existing.receiver_name;
+    const nextAddress = typeof payload.address === 'string' ? payload.address.trim() : existing.address;
+    const zipDigits = typeof payload.zipCode === 'string' ? payload.zipCode.replace(/\D/g, '') : null;
+    const nextZip = zipDigits === null ? existing.zip_code : `${zipDigits.slice(0, 5)}-${zipDigits.slice(5)}`;
     const nextPayment = payload.paymentMethod ?? existing.payment_method;
 
+    // Validação também no servidor: nunca confiar apenas na validação feita no app
+    let invalidMessage = null;
+    if (typeof payload.receiverName === 'string' && (nextReceiver.length < 3 || nextReceiver.length > 120)) {
+      invalidMessage = 'Informe o nome do destinatário (3 a 120 caracteres).';
+    } else if (typeof payload.address === 'string' && (nextAddress.length < 5 || nextAddress.length > 250)) {
+      invalidMessage = 'Informe o endereço completo (5 a 250 caracteres).';
+    } else if (zipDigits !== null && zipDigits.length !== 8) {
+      invalidMessage = 'O CEP deve conter exatamente 8 dígitos.';
+    } else if (!['pix', 'card', 'boleto'].includes(nextPayment)) {
+      invalidMessage = 'Forma de pagamento inválida.';
+    }
+    if (invalidMessage) {
+      return sendJson(res, 400, { error: { message: invalidMessage } });
+    }
+
     sqliteDb
-      .prepare('UPDATE pedidos SET address = ?, payment_method = ? WHERE id = ? AND LOWER(user_email) = ?')
-      .run(nextAddress, nextPayment, String(id), orderUserEmail);
+      .prepare('UPDATE pedidos SET receiver_name = ?, zip_code = ?, address = ?, payment_method = ? WHERE id = ? AND LOWER(user_email) = ?')
+      .run(nextReceiver, nextZip, nextAddress, nextPayment, String(id), orderUserEmail);
 
     const updated = sqliteDb.prepare('SELECT * FROM pedidos WHERE id = ?').get(String(id));
     return sendJson(
       res,
       200,
       { data: mapOrderRow(updated) },
-      'UPDATE pedidos SET address = ?, payment_method = ? WHERE id = ?;'
+      'UPDATE pedidos SET receiver_name = ?, zip_code = ?, address = ?, payment_method = ? WHERE id = ?;'
     );
   }
 
+  // CRUD - DELETE: remove (cancela) o pedido; o "AND user_email" impede apagar pedido de outra pessoa.
   // 10. DELETE /api/pedidos/:id (DELETE FROM pedidos WHERE id = ?)
   if (req.method === 'DELETE' && pathname.startsWith('/api/pedidos/')) {
     const id = pathname.split('/').pop();
@@ -480,6 +558,7 @@ async function handleRequest(req, res) {
   });
 }
 
+// AUTENTICAÇÃO: a mesma função atende login (POST /auth/local) e cadastro (POST /auth/local/register); ambos devolvem um JWT.
 async function authenticate(res, body, isRegistration) {
   if (!isRegistration) {
     const rawIdentifier = body.identifier ?? body.email;
@@ -514,9 +593,15 @@ async function authenticate(res, body, isRegistration) {
     return sendJson(res, 400, { error: { message: 'Informe nome, e-mail e uma senha de 6 a 256 caracteres.' } });
   }
 
+  // LGPD: a conta só é criada se o usuário aceitou o termo de uso e a política de privacidade
+  if (body.acceptedTerms !== true) {
+    return sendJson(res, 400, { error: { message: 'É necessário aceitar os Termos de Uso e a Política de Privacidade.' } });
+  }
+
+  // CADASTRO: grava só o hash da senha. O e-mail é UNIQUE: se já existir, responde 409.
   const passwordHash = await hashPassword(password);
   const result = sqliteDb.prepare(
-    'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?) ON CONFLICT(email) DO NOTHING'
+    'INSERT INTO users (username, email, password_hash, terms_accepted_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(email) DO NOTHING'
   ).run(username, email, passwordHash);
   if (result.changes === 0) {
     return sendJson(res, 409, { error: { message: 'Já existe uma conta com este e-mail.' } });

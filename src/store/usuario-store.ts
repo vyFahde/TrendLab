@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { FitProfile, OrderRecord, Product } from '../types';
+import { FitProfile, OrderRecord, OrderUpdate, Product } from '../types';
 import { mockProducts } from '../data/mockProducts';
 import { api, ApiStatusInfo, sanitizeProductDescriptions } from '../services/api';
 
@@ -25,6 +25,8 @@ interface UsuarioStore {
   updateFitProfile: (profile: Partial<FitProfile>) => Promise<void>;
   addOrder: (order: OrderRecord) => Promise<void>;
   removeOrder: (orderId: string) => Promise<void>;
+  updateOrder: (orderId: string, changes: OrderUpdate) => Promise<OrderRecord>;
+  deleteAccount: (password: string) => Promise<void>;
   fetchProductsFromApi: () => Promise<{ count: number; mode: 'local-strapi' | 'cloud-rest' }>;
   syncWithBackend: () => Promise<ApiStatusInfo>;
   hydrateFromStorage: () => Promise<void>;
@@ -93,6 +95,7 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
   apiStatus: null,
   isSyncingApi: false,
 
+  // Define usuário + JWT na store global e carrega os dados locais dele (isolados por e-mail).
   setUsuario: async (email, name, jwt) => {
     const cleanEmail = email ? email.trim().toLowerCase() : null;
 
@@ -195,6 +198,7 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
     }
   },
 
+  // CRUD - CREATE (app): envia o pedido ao servidor e, só se ele confirmar, atualiza a lista e o cache local.
   addOrder: async (order) => {
     const { usuario, jwtToken } = get();
     if (!usuario || !jwtToken) throw new Error('Entre novamente para enviar o pedido.');
@@ -218,6 +222,27 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
     }
   },
 
+  // CRUD - UPDATE (app): envia a edição ao servidor e, só se ele confirmar, atualiza a lista e o cache local.
+  updateOrder: async (orderId, changes) => {
+    const { usuario: cleanEmail, jwtToken } = get();
+    if (!cleanEmail || !jwtToken) throw new Error('Entre novamente para editar o pedido.');
+
+    const updated = await api.updateOrder(orderId, changes, jwtToken);
+    if (get().jwtToken !== jwtToken) return updated;
+
+    const nextOrders = get().orders.map((o) =>
+      o.id === orderId ? { ...o, ...updated, userEmail: o.userEmail ?? cleanEmail } : o
+    );
+    set({ orders: nextOrders });
+    try {
+      await AsyncStorage.setItem(getOrdersStorageKey(cleanEmail), JSON.stringify(nextOrders));
+    } catch (e) {
+      console.warn('Erro ao salvar pedido editado:', e);
+    }
+    return updated;
+  },
+
+  // CRUD - DELETE (app): cancela o pedido no servidor e remove da lista local.
   removeOrder: async (orderId) => {
     const { usuario: cleanEmail, jwtToken } = get();
     if (!cleanEmail || !jwtToken) throw new Error('Entre novamente para cancelar o pedido.');
@@ -233,6 +258,23 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
       }
     } catch (e) {
       console.warn('Erro ao remover pedido:', e);
+    }
+  },
+
+  // LGPD - exclusão da conta: apaga no servidor (conta + pedidos) e depois remove os dados guardados neste aparelho.
+  deleteAccount: async (password) => {
+    const { usuario: cleanEmail, jwtToken } = get();
+    if (!cleanEmail || !jwtToken) throw new Error('Entre novamente para excluir a conta.');
+
+    await api.deleteAccount(password, jwtToken);
+    try {
+      await AsyncStorage.multiRemove([
+        getOrdersStorageKey(cleanEmail),
+        avatarStorageKey(cleanEmail),
+        fitStorageKey(cleanEmail),
+      ]);
+    } catch (e) {
+      console.warn('Erro ao limpar os dados locais da conta:', e);
     }
   },
 
@@ -253,6 +295,7 @@ export const useUsuarioStore = create<UsuarioStore>((set, get) => ({
     }
   },
 
+  // CRUD - READ / sincronização: busca produtos e pedidos no servidor e mescla com o cache local (AsyncStorage).
   syncWithBackend: async () => {
     set({ isSyncingApi: true });
     try {
