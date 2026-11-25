@@ -174,6 +174,36 @@ function reserveAuthAttempt(req, registration) {
   return true;
 }
 
+// SEGURANÇA: bloqueio por conta. 5 senhas erradas para o mesmo login em 5 minutos
+// bloqueiam aquela conta por 5 minutos (429 + Retry-After), mesmo vindo de IPs diferentes.
+const maxFailedLogins = 5;
+const loginLockMs = 5 * 60_000;
+const failedLogins = new Map();
+
+function loginLockSecondsLeft(identifier) {
+  const entry = failedLogins.get(identifier);
+  if (!entry) return 0;
+  if (Date.now() >= entry.resetAt) {
+    failedLogins.delete(identifier);
+    return 0;
+  }
+  return entry.count >= maxFailedLogins ? Math.ceil((entry.resetAt - Date.now()) / 1000) : 0;
+}
+
+function registerLoginFailure(identifier) {
+  const now = Date.now();
+  const entry = failedLogins.get(identifier);
+  if (!entry || now >= entry.resetAt) {
+    // limita a memória usada pelo mapa contra identificadores aleatórios
+    if (failedLogins.size >= 5000) failedLogins.delete(failedLogins.keys().next().value);
+    failedLogins.set(identifier, { count: 1, resetAt: now + loginLockMs });
+    return;
+  }
+  entry.count += 1;
+  // ao atingir o limite, o bloqueio passa a contar a partir de agora
+  if (entry.count === maxFailedLogins) entry.resetAt = now + loginLockMs;
+}
+
 class RequestError extends Error {
   constructor(status, message) {
     super(message);
@@ -569,16 +599,27 @@ async function authenticate(res, body, isRegistration) {
       return sendJson(res, 400, { error: { message: 'Credenciais inválidas.' } });
     }
 
+    // bloqueio por conta: nem verifica a senha enquanto a conta estiver bloqueada
+    const lockedFor = loginLockSecondsLeft(identifier);
+    if (lockedFor > 0) {
+      res.setHeader('Retry-After', String(lockedFor));
+      return sendJson(res, 429, {
+        error: { message: `Conta temporariamente bloqueada por excesso de tentativas. Tente novamente em ${Math.ceil(lockedFor / 60)} minuto(s).` },
+      });
+    }
+
     const candidates = sqliteDb.prepare(
       'SELECT id, username, email, password_hash FROM users WHERE LOWER(email) = ? OR LOWER(username) = ?'
     ).all(identifier, identifier);
 
     for (const user of candidates) {
       if (await verifyPassword(password, user.password_hash)) {
+        failedLogins.delete(identifier);
         return sendJson(res, 200, issueSession(user, JWT_SECRET));
       }
     }
     if (candidates.length === 0) await verifyPassword(password, '');
+    registerLoginFailure(identifier);
 
     return sendJson(res, 400, { error: { message: 'Credenciais inválidas.' } });
   }
